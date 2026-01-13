@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Web Spellcast</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='animations.css') }}">
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+</head>
+<body>
+    <!-- ==== MODE SELECTOR ==== -->
+    <div id="mode-selector" style="display:none;">
+        <div class="mode-selector-content">
+            <h1 class="mode-title">Web Spellcast</h1>
+            <p class="mode-subtitle">Choose your game mode</p>
+            <div class="mode-buttons">
+                <div class="mode-button" id="mode-single">
+                    <div class="mode-icon">🎮</div>
+                    <div class="mode-label">Single Player</div>
+                    <div class="mode-desc">Play solo against the board</div>
+                </div>
+                <div class="mode-button" id="mode-multi">
+                    <div class="mode-icon">👥</div>
+                    <div class="mode-label">Multiplayer</div>
+                    <div class="mode-desc">Play with friends online</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==== MULTIPLAYER MENU ==== -->
+    <div id="multiplayer-menu" style="display:none;">
+        <div class="multiplayer-menu-content">
+            <h2>🎮 Multiplayer</h2>
+            
+            <!-- FIX #2: Connection Status Indicator -->
+            <div id="connection-status" class="connection-indicator">
+                <span id="connection-dot" class="status-dot connecting"></span>
+                <span id="connection-text">⌛ Connecting to server...</span>
+            </div>
+            
+            <div class="menu-input-group">
+                <label>Your Name:</label>
+                <input type="text" id="player-name-input" placeholder="Enter your name" maxlength="20">
+            </div>
+            <div class="menu-buttons">
+                <button class="menu-button" id="create-room-btn">
+                    <span class="btn-icon">➕</span> Create Room
+                </button>
+                <div class="join-room-section">
+                    <input type="text" id="room-code-input" placeholder="ROOM CODE" maxlength="6" style="text-transform:uppercase;">
+                    <button class="menu-button" id="join-room-btn">
+                        <span class="btn-icon">🚪</span> Join Room
+                    </button>
+                </div>
+            </div>
+            <button class="back-button" onclick="showModeSelector()">← Back to Mode Select</button>
+            <p id="message-area" style="text-align:center; margin-top:15px; min-height:20px;">&nbsp;</p>
+        </div>
+    </div>
+
+    <!-- ==== MULTIPLAYER LOBBY ==== -->
+    <div id="lobby" style="display:none;">
+        <div class="lobby-content">
+            <h2>🎮 Game Lobby</h2>
+            <!-- ISSUE 1: Big room code header removed - code shown in Game Info panel only -->
+            
+            <!-- NEW: Game Configuration Panel -->
+            <div id="game-config-panel" class="config-panel">
+                
+                <!-- 2-Column Grid -->
+                <div class="config-grid">
+                    <!-- LEFT COLUMN -->
+                    <div class="config-left-column">
+                        <!-- Timer System -->
+                        <div class="config-section">
+                            <h3>⏱️ Timer System</h3>
+                            <label class="radio-option">
+                                <input type="radio" name="timerSystem" value="voting" checked>
+                                <span class="radio-label">
+                                    <strong>Voting Timer</strong>
+                                    <small>30s grace period + 30s voting window</small>
+                                </span>
+                            </label>
+                            <label class="radio-option">
+                                <input type="radio" name="timerSystem" value="fixed">
+                                <span class="radio-label">
+                                    <strong>Fixed Timer</strong>
+                                    <small>Set custom duration per turn</small>
+                                </span>
+                            </label>
+                            <!-- Fixed Timer Duration Slider (hidden by default) -->
+                            <div id="fixed-timer-controls" style="display:none; margin-top:10px;">
+                                <label for="timer-duration-slider" style="color:#d1d5db; font-size:0.95em;">
+                                    Duration: <span id="timer-duration-value" style="color:#fbbf24; font-weight:bold; font-size:1.2em;">2.0</span> minutes
+                                </label>
+                                <input type="range" id="timer-duration-slider" min="0.5" max="10" step="0.5" value="2">
+                            </div>
+                        </div>
+
+                        <!-- Board Mode -->
+                        <div class="config-section">
+                            <h3>🎲 Board Mode</h3>
+                            <label class="radio-option">
+                                <input type="radio" name="boardMode" value="shared" checked>
+                                <span class="radio-label">
+                                    <strong>Shared Board</strong>
+                                    <small>Same letters for all players</small>
+                                </span>
+                            </label>
+                            <label class="radio-option">
+                                <input type="radio" name="boardMode" value="randomized">
+                                <span class="radio-label">
+                                    <strong>Randomized Per Word</strong>
+                                    <small>New board after each word</small>
+                                </span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- RIGHT COLUMN -->
+                    <div class="config-right-column">
+                        <!-- Game Info -->
+                        <div class="config-section">
+                            <h3>📋 Game Info</h3>
+                            <div class="info-grid">
+                                <div>Rounds: <strong>5 (Fixed)</strong></div>
+                                <div>Max Players: <strong>4</strong></div>
+                                <div>Current Players: <strong id="current-player-count">1/4</strong></div>
+                                <div>Room Code: <strong id="room-code-info">------</strong></div>
+                            </div>
+                        </div>
+
+                        <!-- Players List -->
+                        <div class="config-section">
+                            <div id="lobby-player-list">
+                                <h3>Players</h3>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+            
+            <!-- ISSUE 1: Removed duplicate timer settings - settings are in config panel only -->
+            
+            <div class="lobby-actions">
+                <button class="lobby-button start-btn" id="start-game-btn" style="display:none;">
+                    🚀 Start Game
+                </button>
+                <button class="lobby-button leave-btn" id="leave-lobby-btn">
+                    🚪 Leave Lobby
+                </button>
+            </div>
+            
+            <p class="lobby-note">Waiting for host to start the game...</p>
+            <p id="lobby-message" style="text-align:center; min-height:20px; margin-top:10px;">&nbsp;</p>
+        </div>
+    </div>
+
+    <!-- ==== GAME CONTAINER (SINGLE PLAYER) ==== -->
+    <div id="game-container">
+        
+        <div id="left-panel">
+            <div id="abilities-area">
+                <h3>Abilities</h3>
+                <button class="ability-button" data-ability="shuffle">
+                    <span class="icon">🔄</span> SHUFFLE (<span class="cost">1💎</span>)
+                </button>
+                <button class="ability-button" data-ability="swap">
+                    <span class="icon">🔀</span> SWAP (<span class="cost">3💎</span>)
+                </button>
+                <button class="ability-button" data-ability="hint">
+                    <span class="icon">💡</span> HINT (<span class="cost">4💎</span>)
+                </button>
+                <!-- HINT DISPLAY AREA -->
+                <div id="hint-display" style="display:none; margin-top:15px; padding:12px; background:rgba(251,191,36,0.1); border:2px solid #fbbf24; border-radius:8px;">
+                    <div style="font-size:0.9em; color:#fbbf24; font-weight:600; margin-bottom:5px;">💡 Hint:</div>
+                    <div id="hint-word" style="font-size:1.2em; font-weight:bold; color:#ffd700; text-shadow:0 0 10px rgba(255,215,0,0.5);"></div>
+                    <div id="hint-score" style="font-size:0.9em; color:#10b981; margin-top:3px;"></div>
+                </div>
+            </div>
+            <div id="found-words-container">
+                <h3>Found Words</h3>
+                <ul id="found-words-list"></ul>
+            </div>
+        </div>
+
+        <div id="center-panel">
+            <!-- TIMER DISPLAY (IN-GAME) -->
+            <!-- Timer Display -->
+            <div id="timer-container" style="display:none; margin-bottom:15px; width:100%; background:rgba(17,24,39,0.9); border:2px solid #4b5563; border-radius:10px; padding:15px; box-shadow:0 8px 16px rgba(0,0,0,0.3);">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                    <span id="timer-label" style="font-size:1.2em; font-weight:bold;">⏱️ Timer</span>
+                    <span id="timer-text" style="font-size:1.5em; font-weight:bold; color:#ffd700;">0:00</span>
+                </div>
+                <div style="width:100%; height:20px; background:rgba(75,85,99,0.5); border-radius:10px; overflow:hidden;">
+                    <div id="timer-bar" style="height:100%; background:#ef4444; transition:width 0.3s ease, background-color 0.3s ease; border-radius:10px;"></div>
+                </div>
+                <!-- ISSUE 5: Voting system removed - turns end immediately after submission -->
+            </div>
+
+            <div id="selection-area">
+                <span id="current-word-display"></span>
+                <span id="score-preview-display"></span>
+            </div>
+
+            <div id="game-board-area">
+                <div id="game-board">
+                    <svg id="path-svg"></svg>
+                </div>
+            </div>
+            
+            <div id="input-area">
+                <input type="text" id="word-input" placeholder="Drag or type a word...">
+            </div>
+
+            <p id="message-area">&nbsp;</p>
+        </div>
+
+        <div id="right-panel">
+            <h1>Web Spellcast</h1>
+            <div id="stats-area">
+                <h2>Round: <span id="round-display">1</span> / 5</h2>
+                <h2>Score: <span id="score-display">0</span></h2>
+                <h2>Gems: <span id="gem-display">0</span> 💎</h2>
+            </div>
+            <button id="new-game-button" class="hidden">New Game</button>
+        </div>
+
+    </div>
+
+    <!-- ==== OVERLAYS ==== -->
+    <div id="letter-picker-overlay" class="hidden">
+        <div id="letter-picker"></div>
+    </div>
+    <div id="hint-loader-overlay" class="hidden">
+        <div class="loader-content">
+            <div class="spinner"></div>
+            <p>Finding the best word...</p>
+            <p id="hint-percentage">0%</p>
+        </div>
+    </div>
+    <div id="word-spotlight" class="hidden">
+        <h1 id="spotlight-word"></h1>
+    </div>
+
+    <!-- ==== SCRIPTS ==== -->
+    <script src="{{ url_for('static', filename='game.js') }}"></script>
+    <script src="{{ url_for('static', filename='multiplayer.js') }}"></script>
+    <script>
+        // Initialize the game using the data passed from Flask
+        document.addEventListener('DOMContentLoaded', () => {
+            initGame({{ initial_state | tojson }}, {{ letter_scores | tojson }});
+        });
+    </script>
+</body>
+</html>
