@@ -11,7 +11,7 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = 'spellcast-multiplayer-secret-key-2024'
 
 # Initialize SocketIO with eventlet for production compatibility
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
+socketio = SocketIO(app, cors_allowed_origins="*")
 
 # ===== MULTIPLAYER STATE (Phase 1 + Timer System) =====
 game_rooms = {}  # Room code -> room data
