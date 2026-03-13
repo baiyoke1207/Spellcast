@@ -355,6 +355,11 @@ def calculate_score_for_path(path, word):
 
 @app.route("/")
 def homepage():
+    # CRITICAL FIX: Prevent Render's 5-second bot pings from destroying the board!
+    user_agent = request.headers.get('User-Agent', '')
+    if 'Go-http-client' in user_agent or request.method == 'HEAD':
+        return "OK", 200
+        
     start_new_game()
     return render_template("index.html", initial_state=game_state, letter_scores=LETTER_SCORES)
 
@@ -363,9 +368,20 @@ def submit_word():
     data = request.get_json()
     word, path = data.get("word", "").lower(), data.get("path", [])
     
-    if len(word) < 3 or word in game_state["found_words"] or word not in english_words or not is_path_valid(path, word, game_state["board_tiles"]):
-        return jsonify({"valid": False, "reason": "Invalid word or path"})
+    # Split up the validations so the game tells us EXACTLY what is wrong
+    if len(word) < 3:
+        return jsonify({"valid": False, "reason": "Word too short"})
+    
+    if word in game_state.get("found_words", []):
+        return jsonify({"valid": False, "reason": "Word already found"})
+        
+    if word not in english_words:
+        return jsonify({"valid": False, "reason": "Word not in dictionary"})
+        
+    if not is_path_valid(path, word, game_state.get("board_tiles", [])):
+        return jsonify({"valid": False, "reason": "Board out of sync! Refresh the page."})
 
+    # If it passes all checks, give them points!
     final_score = calculate_score_for_path(path, word)
     game_state["score"] += final_score
     game_state["found_words"].append(word)
