@@ -9,10 +9,10 @@ function initGame(initialState, letterScores) {
 
     // Sound effects
     const sounds = {
-        tile_select: new Audio('/static/sounds/tile_select.mp3'),
-        drag: new Audio('/static/sounds/drag.mp3'),
-        change_word: new Audio('/static/sounds/change_word.mp3'),
-        swap: new Audio('/static/sounds/swap.mp3')
+        tile_select: new Audio('/static/sound/tile_select.mp3'),
+        drag: new Audio('/static/sound/drag.mp3'),
+        change_word: new Audio('/static/sound/change_word.mp3'),
+        swap: new Audio('/static/sound/swap.mp3')
     };
 
     function playSound(soundName) {
