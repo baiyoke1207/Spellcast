@@ -49,7 +49,7 @@ LETTER_FREQUENCIES = "E"*12+"A"*9+"I"*9+"O"*8+"N"*6+"R"*6+"T"*6+"L"*4+"S"*4+"U"*
 GEM_COSTS = {"shuffle": 1, "swap": 3, "hint": 4}
 
 def load_words():
-    with open("words_alpha.txt") as word_file:
+    with open("static/words_alpha.txt") as word_file:
         return set(word_file.read().split())
 english_words = load_words()
 
