@@ -22,6 +22,28 @@ function initGame(initialState, letterScores) {
         }
     }
 
+// --- NEW: Volume & Home Controls ---
+    const volumeSlider = document.getElementById('volume-slider');
+    if (volumeSlider) {
+        // Set initial volume
+        Object.values(sounds).forEach(sound => sound.volume = volumeSlider.value);
+        
+        // Change volume when slider moves
+        volumeSlider.addEventListener('input', (e) => {
+            const vol = e.target.value;
+            Object.values(sounds).forEach(sound => sound.volume = vol);
+        });
+    }
+
+    const homeButton = document.getElementById('home-button');
+    if (homeButton) {
+        homeButton.addEventListener('click', () => {
+            // Instantly wipes the game and returns to the mode selector
+            window.location.reload(); 
+        });
+    }
+    // -----------------------------------
+
     // DOM Elements
     const boardElement = document.getElementById('game-board');
     const wordInput = document.getElementById('word-input');

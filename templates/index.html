@@ -225,6 +225,13 @@
                 <h2>Score: <span id="score-display">0</span></h2>
                 <h2>Gems: <span id="gem-display">0</span> 💎</h2>
             </div>
+            <div id="controls-area" style="margin-top: 20px; background: rgba(0,0,0,0.3); padding: 15px; border-radius: 10px;">
+                <button id="home-button" class="ability-button" style="width: 100%; margin-bottom: 15px; background: #4b5563;">🏠 Return Home</button>
+                <div style="display: flex; align-items: center; justify-content: space-between; font-weight: bold;">
+                    <span>🔊 Volume</span>
+                    <input type="range" id="volume-slider" min="0" max="1" step="0.1" value="0.5" style="cursor: pointer; width: 60%;">
+                </div>
+            </div>
             <button id="new-game-button" class="hidden">New Game</button>
         </div>
 
