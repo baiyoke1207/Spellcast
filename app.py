@@ -49,7 +49,7 @@ LETTER_FREQUENCIES = "E"*12+"A"*9+"I"*9+"O"*8+"N"*6+"R"*6+"T"*6+"L"*4+"S"*4+"U"*
 GEM_COSTS = {"shuffle": 1, "swap": 3, "hint": 4}
 
 def load_words():
-    with open("static/words_alpha.txt") as word_file:
+    with open("words_alpha.txt") as word_file:
         return set(word_file.read().split())
 english_words = load_words()
 
@@ -218,6 +218,27 @@ def stop_timer(room_code):
         del timer_threads[room_code]
 
 # ===== SINGLE PLAYER FUNCTIONS (PRESERVED) =====
+
+def get_valid_single_letter(current_board_tiles):
+    """Pulls a random letter, ensuring no letter appears more than 5 times on the current board."""
+    # Count the letters currently on the board
+    letter_counts = {}
+    for tile in current_board_tiles:
+        if tile and tile.get("letter"):
+            l = tile["letter"]
+            letter_counts[l] = letter_counts.get(l, 0) + 1
+
+    # Try 100 times to find a letter that hasn't hit the cap
+    for _ in range(100):
+        candidate = random.choice(LETTER_FREQUENCIES)
+        if letter_counts.get(candidate, 0) < 5:
+            return candidate
+            
+    # Fallback if we somehow fail 100 times
+    available = [l for l in set(LETTER_FREQUENCIES) if letter_counts.get(l, 0) < 5]
+    if available:
+        return random.choice(available)
+    return random.choice(LETTER_FREQUENCIES)
 
 def get_balanced_board():
     board_tiles = []
@@ -402,7 +423,8 @@ def submit_word():
             if available_indices: 
                 game_state["board_tiles"][random.choice(available_indices)]["special"] = special_type
         
-        game_state["board_tiles"][index]["letter"] = random.choice(LETTER_FREQUENCIES)
+        # Instead of random.choice, use the bouncer so replacement tiles obey the 5-max rule!
+        game_state["board_tiles"][index]["letter"] = get_valid_single_letter(game_state["board_tiles"])
         game_state["board_tiles"][index]["special"] = None
         new_letter_indices.append(index)
     
@@ -546,17 +568,39 @@ def calculate_score_with_multipliers(word):
 
 # GAP #4: ROW-BASED BOARD REFRESH
 
+def get_valid_multiplayer_letter(board_state):
+    """Multiplayer Bouncer: ensures no letter appears > 5 times using weighted frequencies."""
+    letter_counts = {}
+    for row in board_state:
+        for letter in row:
+            if letter:
+                l = letter.upper()
+                letter_counts[l] = letter_counts.get(l, 0) + 1
+
+    letters = list(FREQUENCY_MAP.keys())
+    weights = list(FREQUENCY_MAP.values())
+
+    # Try 100 times to pull a letter that hasn't hit the 5-cap
+    for _ in range(100):
+        candidate = random.choices(letters, weights=weights, k=1)[0]
+        if letter_counts.get(candidate, 0) < 5:
+            return candidate
+            
+    # Fallback if the board is somehow completely full
+    available = [l for l in letters if letter_counts.get(l, 0) < 5]
+    if available:
+        return random.choice(available)
+    return random.choices(letters, weights=weights, k=1)[0]
+
 def refresh_consumed_positions(board_state, consumed_positions):
     """
     CRITICAL FIX #1: Refresh ONLY the specific consumed positions with new random letters.
-    NOT entire rows, ONLY individual tile positions that were used in words.
+    Now equipped with the Maximum-5-Letters Bouncer!
     """
-    letters = list(FREQUENCY_MAP.keys())
-    weights = list(FREQUENCY_MAP.values())
-    
     for row, col in consumed_positions:
-        if 0 <= row < GRID_SIZE and 0 <= col < GRID_SIZE:
-            board_state[row][col] = random.choices(letters, weights=weights, k=1)[0]
+        if 0 <= row < 5 and 0 <= col < 5: # Assuming GRID_SIZE is 5
+            # We use the bouncer instead of raw random!
+            board_state[row][col] = get_valid_multiplayer_letter(board_state)
     
     return board_state
 
