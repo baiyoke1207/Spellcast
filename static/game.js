@@ -317,20 +317,29 @@ function initGame(initialState, letterScores) {
             setTimeout(() => {
                 const utterance = new SpeechSynthesisUtterance(word);
                 
-                // Enhanced settings for better quality
-                utterance.rate = 0.85; // Slightly slower for clarity
-                utterance.pitch = 1.0; // Natural pitch
-                utterance.volume = 1.0; // Full volume
-                utterance.lang = 'en-US'; // US English
+                // Adjusted settings for a more natural human flow
+                utterance.rate = 0.95; 
+                utterance.pitch = 1.0; 
+                utterance.volume = 1.0; 
+                utterance.lang = 'en-US'; 
                 
-                // Try to use a higher-quality voice if available
-                const voices = window.speechSynthesis.getVoices();
+                // Fetch voices
+                let voices = window.speechSynthesis.getVoices();
+                
                 if (voices.length > 0) {
-                    // Prefer enhanced/premium voices
-                    const preferredVoice = voices.find(v => 
-                        (v.lang === 'en-US' || v.lang.startsWith('en-')) && 
-                        (v.name.includes('Enhanced') || v.name.includes('Premium') || v.name.includes('Google'))
-                    ) || voices.find(v => v.lang === 'en-US' || v.lang.startsWith('en-'));
+                    // Create a strict hierarchy of the absolute best AI voices available
+                    const bestVoices = [
+                        voices.find(v => v.name.includes('Aria') && v.name.includes('Natural')), // Microsoft's best
+                        voices.find(v => v.name.includes('Natural') && v.lang.startsWith('en')), // Other cloud voices
+                        voices.find(v => v.name.includes('Online') && v.lang.startsWith('en')),  // Edge online
+                        voices.find(v => v.name === 'Google US English'),                        // Chrome's best
+                        voices.find(v => v.name.includes('Premium') && v.lang.startsWith('en')), // Safari's best
+                        voices.find(v => v.name.includes('Enhanced') && v.lang.startsWith('en')),
+                        voices.find(v => v.lang === 'en-US')                                     // Fallback
+                    ];
+
+                    // Select the first top-tier voice the browser actually has
+                    const preferredVoice = bestVoices.find(v => v !== undefined);
                     
                     if (preferredVoice) {
                         utterance.voice = preferredVoice;
@@ -346,14 +355,15 @@ function initGame(initialState, letterScores) {
             }, 50); // Small delay to ensure clean cancellation
         } else {
             console.warn('Speech synthesis not supported in this browser');
-            showMessage('Speech synthesis not supported in your browser', 'red');
         }
     }
     
-    // Load voices when they become available
+    // CRUCIAL FIX: Force the browser to preload cloud voices in the background 
+    // BEFORE the player clicks the button!
     if ('speechSynthesis' in window) {
+        window.speechSynthesis.getVoices(); 
         window.speechSynthesis.onvoiceschanged = () => {
-            // Voices loaded, will be used on next pronunciation
+            window.speechSynthesis.getVoices(); 
         };
     }
     
