@@ -271,13 +271,24 @@ def is_path_valid(path, word, board_tiles):
         coord_tuple = (r, c)
         if coord_tuple in seen_coords: return False
         seen_coords.add(coord_tuple)
+        
     for i in range(len(path)):
         r, c = path[i]
         index = r * GRID_SIZE + c
+        
+        # --- NEW SAFETY NET ---
+        # If the server woke up from sleep and lost the board, 
+        # or the index is somehow out of bounds, gracefully reject the move.
+        if not board_tiles or index >= len(board_tiles): 
+            return False 
+        # ----------------------
+        
         if board_tiles[index]['letter'].lower() != word[i].lower(): return False
+        
         if i > 0:
             prev_r, prev_c = path[i-1]
             if abs(r - prev_r) > 1 or abs(c - prev_c) > 1: return False
+            
     return True
 
 def start_new_game():
