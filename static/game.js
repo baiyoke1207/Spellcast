@@ -425,7 +425,7 @@ function initGame(initialState, letterScores) {
     }
     
     // FEATURE #4: Fetch word definition from Free Dictionary API
-    async function fetchWordDefinition(word) {
+async function fetchWordDefinition(word, isFallback = false) {
         try {
             const response = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${word.toLowerCase()}`);
             
@@ -436,24 +436,90 @@ function initGame(initialState, letterScores) {
             const data = await response.json();
             const entry = data[0];
             
-            // Extract first meaning
             const meaning = entry.meanings && entry.meanings[0];
-            if (!meaning) return null;
+            if (!meaning || !meaning.definitions || meaning.definitions.length === 0) {
+                throw new Error('No definitions available in the data');
+            }
             
-            const firstDefinition = meaning.definitions && meaning.definitions[0];
-            if (!firstDefinition) return null;
+            // Format up to 3 definitions
+            let combinedDefinitions = '';
+            const maxDefs = Math.min(meaning.definitions.length, 3);
+            
+            for (let i = 0; i < maxDefs; i++) {
+                if (maxDefs > 1) {
+                    combinedDefinitions += `${i + 1}. ${meaning.definitions[i].definition} `;
+                } else {
+                    combinedDefinitions += meaning.definitions[i].definition;
+                }
+            }
+            
+            const exampleSentence = meaning.definitions.find(def => def.example)?.example || '';
             
             return {
-                word: entry.word,
+                word: isFallback ? word : entry.word, // Keep the original word if it's a fallback
                 phonetic: entry.phonetic || (entry.phonetics && entry.phonetics[0] && entry.phonetics[0].text) || '',
                 partOfSpeech: meaning.partOfSpeech || 'word',
-                definition: firstDefinition.definition || 'No definition available',
-                example: firstDefinition.example || ''
+                definition: combinedDefinitions.trim(),
+                example: exampleSentence
             };
+            
         } catch (error) {
-            console.error('Failed to fetch definition:', error);
-            return null;
+            // THE SMART FALLBACK: If we haven't tried a fallback yet, chop the suffix and try again!
+            if (!isFallback) {
+                const baseCandidates = getBaseWordCandidates(word.toLowerCase());
+                
+                for (let baseWord of baseCandidates) {
+                    // Secretly fetch the chopped word
+                    const fallbackAttempt = await fetchWordDefinition(baseWord, true);
+                    
+                    // If the dictionary finds the base word, format it and return it!
+                    if (fallbackAttempt && !fallbackAttempt.definition.includes('Valid word, but definition not found')) {
+                        fallbackAttempt.word = word; // Keep the title as the word they played
+                        fallbackAttempt.definition = `*(Base word: ${baseWord})* ${fallbackAttempt.definition}`;
+                        return fallbackAttempt;
+                    }
+                }
+            }
+            
+            // THE SAFETY NET: If it completely fails, don't crash the game.
+            return {
+                word: word,
+                phonetic: '',
+                partOfSpeech: 'valid word',
+                definition: 'Valid word, but definition not found in the free dictionary.',
+                example: ''
+            };
         }
+    }
+
+// HELPER FUNCTION: Chops common English suffixes and prefixes to guess the base word
+    function getBaseWordCandidates(word) {
+        const candidates = [];
+        const w = word.toLowerCase();
+        
+        // --- SAFE SUFFIXES ---
+        if (w.endsWith('ies')) candidates.push(w.slice(0, -3) + 'y'); // berries -> berry
+        if (w.endsWith('es')) candidates.push(w.slice(0, -2), w.slice(0, -1)); // boxes -> box
+        if (w.endsWith('s') && !w.endsWith('ss')) candidates.push(w.slice(0, -1)); // cats -> cat (ignore 'glass')
+        if (w.endsWith('ing')) candidates.push(w.slice(0, -3), w.slice(0, -3) + 'e'); // playing -> play, making -> make
+        if (w.endsWith('ed')) candidates.push(w.slice(0, -2), w.slice(0, -1)); // jumped -> jump, baked -> bake
+        if (w.endsWith('er') && w.length > 4) candidates.push(w.slice(0, -2), w.slice(0, -1)); // jerker -> jerk
+        if (w.endsWith('ly') && w.length > 4) candidates.push(w.slice(0, -2)); // quickly -> quick
+        if (w.endsWith('able')) candidates.push(w.slice(0, -4), w.slice(0, -4) + 'e'); // lovable -> love
+        if (w.endsWith('ness') && w.length > 5) candidates.push(w.slice(0, -4), w.slice(0, -4) + 'y'); // sadness -> sad, heaviness -> heavy
+        if (w.endsWith('hood') && w.length > 5) candidates.push(w.slice(0, -4)); // motherhood -> mother
+        if (w.endsWith('less') && w.length > 5) candidates.push(w.slice(0, -4)); // careless -> care
+        if (w.endsWith('ful') && w.length > 4) candidates.push(w.slice(0, -3)); // joyful -> joy
+        if (w.endsWith('ment') && w.length > 5) candidates.push(w.slice(0, -4)); // payment -> pay
+
+        // --- SAFE PREFIXES ---
+        // We only strip these if the remaining word is at least 3 letters long to avoid the "uncle" -> "cle" trap
+        if (w.startsWith('un') && w.length > 4) candidates.push(w.slice(2)); // untouched -> touched
+        if (w.startsWith('dis') && w.length > 5) candidates.push(w.slice(3)); // disable -> able
+        if (w.startsWith('re') && w.length > 4) candidates.push(w.slice(2)); // replay -> play
+        if (w.startsWith('pre') && w.length > 5) candidates.push(w.slice(3)); // preheat -> heat
+        
+        return candidates;
     }
 
     async function setStateAndRender(newState, animationType = null) {
