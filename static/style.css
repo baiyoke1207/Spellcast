@@ -1889,3 +1889,13 @@ body::before {
         padding: 20px;
     }
 }
+
+/* ===== DICTIONARY DEFINITION FIX ===== */
+#definition-box, 
+#word-definition, 
+.definition, 
+#message-area {
+    white-space: pre-line;
+    text-align: left; /* Optional: Makes it look even more like a real dictionary */
+    line-height: 1.5; /* Optional: Gives the text some breathing room */
+}
