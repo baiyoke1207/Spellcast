@@ -441,13 +441,14 @@ async function fetchWordDefinition(word, isFallback = false) {
                 throw new Error('No definitions available in the data');
             }
             
-            // Format up to 3 definitions
+// Format up to 3 definitions
             let combinedDefinitions = '';
             const maxDefs = Math.min(meaning.definitions.length, 3);
             
             for (let i = 0; i < maxDefs; i++) {
                 if (maxDefs > 1) {
-                    combinedDefinitions += `${i + 1}. ${meaning.definitions[i].definition} `;
+                    // Added \n\n to force a line break between numbered items!
+                    combinedDefinitions += `${i + 1}. ${meaning.definitions[i].definition}\n\n`; 
                 } else {
                     combinedDefinitions += meaning.definitions[i].definition;
                 }
