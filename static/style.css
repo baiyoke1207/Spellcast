@@ -1528,6 +1528,7 @@ body::before {
     background: linear-gradient(to right, #8b5cf6, #ec4899);
     outline: none;
     -webkit-appearance: none;
+    appearance: none; /* <-- This makes the Linter happy! */
     margin-top: 10px;
     cursor: pointer;
 }

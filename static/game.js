@@ -1769,6 +1769,20 @@ async function fetchWordDefinition(word, isFallback = false) {
             return;
         }
 
+        // --- NEW: THE CLEAN SLATE PHASE ---
+        // Aggressively strip any residual CSS from a previous shuffle
+        tiles.forEach(tile => {
+            tile.classList.remove('shuffling');
+            tile.removeAttribute('style');
+            tile.style.transition = 'none';
+            tile.style.animation = 'none';
+            tile.style.transform = 'none';
+        });
+        
+        // Force the browser to recalculate layout so it doesn't read ghost coordinates
+        document.body.offsetHeight; 
+        // -----------------------------------
+
         boardElement.classList.add('game-board--shuffling');
 
         const measureBoardCenter = () => {
@@ -1857,6 +1871,8 @@ async function fetchWordDefinition(word, isFallback = false) {
         const snapTotalMs = SNAP_MS + Math.max(0, tiles.length - 1) * SNAP_STAGGER_MS + 80;
         await new Promise((resolve) => setTimeout(resolve, snapTotalMs));
 
+        // --- NEW: THE FINAL SCRUB ---
+        // Make absolutely sure no inline transitions or styles are left behind
         tiles.forEach((tile) => {
             tile.classList.remove('shuffling');
             tile.removeAttribute('style');
