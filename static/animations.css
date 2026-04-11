@@ -16,7 +16,7 @@
     }
 }
 
-/* Shuffle tile motion lives in style.css: tileShuffleGather / tileShuffleLand */
+/* Shuffle: style.css — shufflePullToCenter, shuffleCenterJiggle, .shuffling */
 
 /* ===== WORD DISPLAY ANIMATIONS ===== */
 @keyframes glowSweep {

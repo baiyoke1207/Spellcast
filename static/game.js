@@ -106,7 +106,7 @@ function initGame(initialState, letterScores) {
     }
 
     function renderBoard(options = {}) {
-        const shuffleReveal = options.shuffleReveal === true;
+        const skipTileEntrance = options.skipTileEntrance === true;
         boardElement.innerHTML = '<svg id="path-svg"></svg>';
         if (hasShimmer) {
             boardElement.classList.add('persistent-shimmer');
@@ -121,10 +121,8 @@ function initGame(initialState, letterScores) {
             tileElement.dataset.r = r;
             tileElement.dataset.c = c;
             
-            if (shuffleReveal) {
-                tileElement.classList.add('grid-tile--shuffle-land');
-                const distFromCenter = Math.abs(r - 2) + Math.abs(c - 2);
-                tileElement.style.animationDelay = `${distFromCenter * 0.009}s`;
+            if (skipTileEntrance) {
+                tileElement.style.animation = 'none';
             } else {
                 const animationDelay = (r * GRID_SIZE + c) * 0.05;
                 tileElement.style.animationDelay = `${animationDelay}s`;
@@ -554,7 +552,7 @@ async function fetchWordDefinition(word, isFallback = false) {
             await showRoundTransition(newState.round);
         }
 
-        renderBoard({ shuffleReveal: animationType === 'shuffle' });
+        renderBoard();
         updateUI();
     }
     
@@ -1744,45 +1742,115 @@ async function fetchWordDefinition(word, isFallback = false) {
         }, 200);
     }
 
-    async function animateShuffleCards() {
-        const tiles = Array.from(document.querySelectorAll('.grid-tile'));
-        if (tiles.length === 0) return;
+    /**
+     * Scrabble-style table scramble: lift → pull to board center (getBoundingClientRect) → jiggle pile →
+     * FLIP snap to new grid cells. Total ~0.65–0.75s.
+     */
+    async function animateShuffleCards(newState) {
+        const PULL_MS = 155;
+        const JIGGLE_MS = 360;
+        const SNAP_MS = 185;
+        const DEFAULT_TILE_SHADOW = '0 4px 8px rgba(0, 0, 0, 0.2)';
 
-        const CR = 2;
-        const CC = 2;
-        const PULL_PX = 13;
-        const GATHER_DURATION_MS = 520;
-        const STAGGER_PER_STEP_S = 0.01;
-        const easing = 'cubic-bezier(0.32, 0.72, 0, 1)';
+        const applyState = () => {
+            gameState = newState;
+            currentScore = newState.score;
+            currentGems = newState.gems;
+        };
+
+        let tiles = Array.from(document.querySelectorAll('.grid-tile'));
+        if (tiles.length === 0) {
+            applyState();
+            renderBoard();
+            return;
+        }
 
         boardElement.classList.add('game-board--shuffling');
 
+        const measureBoardCenter = () => {
+            const br = boardElement.getBoundingClientRect();
+            return {
+                x: br.left + br.width / 2,
+                y: br.top + br.height / 2
+            };
+        };
+
+        const center0 = measureBoardCenter();
+
         tiles.forEach((tile) => {
-            const r = parseInt(tile.dataset.r, 10);
-            const c = parseInt(tile.dataset.c, 10);
-            const gx = (CC - c) * PULL_PX;
-            const gy = (CR - r) * PULL_PX;
-            const twist = ((r * 5 + c * 7) % 9 - 4) * 2.4;
-            tile.style.setProperty('--gather-x', `${gx}px`);
-            tile.style.setProperty('--gather-y', `${gy}px`);
-            tile.style.setProperty('--gather-twist', `${twist}deg`);
-            const manhattan = Math.abs(r - CR) + Math.abs(c - CC);
-            tile.style.animationDelay = `${manhattan * STAGGER_PER_STEP_S}s`;
-            tile.style.animation = `tileShuffleGather ${GATHER_DURATION_MS / 1000}s ${easing} both`;
+            const tr = tile.getBoundingClientRect();
+            const tcx = tr.left + tr.width / 2;
+            const tcy = tr.top + tr.height / 2;
+            const pullX = center0.x - tcx;
+            const pullY = center0.y - tcy;
+            const randomRotDeg = Math.random() * 80 - 40;
+            tile.style.setProperty('--pull-x', `${pullX}px`);
+            tile.style.setProperty('--pull-y', `${pullY}px`);
+            tile.style.setProperty('--random-rot', `${randomRotDeg}deg`);
+            tile.classList.add('shuffling');
+            tile.style.animation = 'none';
         });
 
-        const maxManhattan = 4;
-        const totalMs =
-            GATHER_DURATION_MS + maxManhattan * STAGGER_PER_STEP_S * 1000 + 50;
-        await new Promise((resolve) => setTimeout(resolve, totalMs));
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 
         tiles.forEach((tile) => {
+            tile.style.animation = `shufflePullToCenter ${PULL_MS}ms cubic-bezier(0.25, 0.85, 0.32, 1) forwards`;
+        });
+        await new Promise((resolve) => setTimeout(resolve, PULL_MS));
+
+        tiles.forEach((tile) => {
+            tile.style.animation = `shuffleCenterJiggle ${JIGGLE_MS}ms ease-in-out forwards`;
+        });
+        await new Promise((resolve) => setTimeout(resolve, JIGGLE_MS));
+
+        applyState();
+        renderBoard({ skipTileEntrance: true });
+
+        tiles = Array.from(document.querySelectorAll('.grid-tile'));
+        tiles.forEach((tile) => {
+            const randomRotDeg = Math.random() * 80 - 40;
+            tile.style.setProperty('--random-rot', `${randomRotDeg}deg`);
+            tile.classList.add('shuffling');
+        });
+
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
+        const center1 = measureBoardCenter();
+        tiles.forEach((tile) => {
+            const tr = tile.getBoundingClientRect();
+            const tcx = tr.left + tr.width / 2;
+            const tcy = tr.top + tr.height / 2;
+            const dx = center1.x - tcx;
+            const dy = center1.y - tcy;
+            tile.style.transition = 'none';
+            tile.style.animation = 'none';
+            tile.style.transform = `translate3d(${dx}px, ${dy}px, 0) scale(1.1) rotate(var(--random-rot))`;
+            tile.style.boxShadow =
+                '0 14px 32px rgba(0, 0, 0, 0.48), 0 6px 12px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.12)';
+        });
+
+        boardElement.offsetHeight;
+
+        tiles.forEach((tile) => {
+            tile.style.transition =
+                `transform ${SNAP_MS}ms cubic-bezier(0.2, 0.95, 0.25, 1), box-shadow ${SNAP_MS}ms ease-out`;
+            tile.style.transform = 'translate3d(0, 0, 0) scale(1) rotate(0deg)';
+            tile.style.boxShadow = DEFAULT_TILE_SHADOW;
+        });
+
+        await new Promise((resolve) => setTimeout(resolve, SNAP_MS + 40));
+
+        tiles.forEach((tile) => {
+            tile.classList.remove('shuffling');
+            tile.style.transition = '';
+            tile.style.transform = '';
             tile.style.animation = '';
-            tile.style.animationDelay = '';
-            tile.style.removeProperty('--gather-x');
-            tile.style.removeProperty('--gather-y');
-            tile.style.removeProperty('--gather-twist');
+            tile.style.boxShadow = '';
+            tile.style.removeProperty('--pull-x');
+            tile.style.removeProperty('--pull-y');
+            tile.style.removeProperty('--random-rot');
         });
+
         boardElement.classList.remove('game-board--shuffling');
     }
 
@@ -2277,8 +2345,8 @@ async function fetchWordDefinition(word, isFallback = false) {
             if (ability === 'shuffle') {
                 showMessage('Shuffling board!', 'blue');
                 playSound('swap');
-                await animateShuffleCards();
-                await setStateAndRender(result.new_state, 'shuffle');
+                await animateShuffleCards(result.new_state);
+                updateUI();
             } else if (ability === 'hint') {
                 // FIX #1: HINT - Display hint persistently
                 currentGems = result.new_state.gems;
