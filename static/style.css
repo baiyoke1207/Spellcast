@@ -290,11 +290,14 @@ body::before {
     }
 }
 
-/* Scrabble table scramble (vars --pull-x, --pull-y, --random-rot set in JS; .shuffling on tiles) */
+/* Scrabble table scramble (vars set in JS; .shuffling on tiles) */
 .grid-tile.shuffling {
     z-index: 30;
     transform-origin: center center;
     will-change: transform, box-shadow;
+    --swirl-ox: 0px;
+    --swirl-oy: 0px;
+    --swirl-r-extra: 0deg;
 }
 
 @keyframes shufflePullToCenter {
@@ -329,36 +332,39 @@ body::before {
             0 0 0 1px rgba(255, 255, 255, 0.12),
             0 0 24px rgba(255, 215, 0, 0.15);
     }
-    20% {
-        transform: translate3d(calc(var(--pull-x) + 2px), calc(var(--pull-y) - 2px), 0) scale(1.1)
-            rotate(calc(var(--random-rot) + 3deg));
+    /* Spread into a loose “ring” */
+    28% {
+        transform: translate3d(
+                calc(var(--pull-x) + var(--swirl-ox)),
+                calc(var(--pull-y) + var(--swirl-oy)),
+                0)
+            scale(1.14) rotate(calc(var(--random-rot) + var(--swirl-r-extra)));
         box-shadow:
             0 14px 32px rgba(0, 0, 0, 0.48),
             0 6px 12px rgba(0, 0, 0, 0.35),
             0 0 0 1px rgba(255, 255, 255, 0.12),
             0 0 24px rgba(255, 215, 0, 0.15);
     }
-    40% {
-        transform: translate3d(calc(var(--pull-x) - 2px), calc(var(--pull-y) + 2px), 0) scale(1.1)
-            rotate(calc(var(--random-rot) - 2.5deg));
+    /* Draw back toward pile center */
+    52% {
+        transform: translate3d(
+                calc(var(--pull-x) + var(--swirl-ox) * 0.22),
+                calc(var(--pull-y) + var(--swirl-oy) * 0.22),
+                0)
+            scale(1.09) rotate(calc(var(--random-rot) + var(--swirl-r-extra) * 0.4));
         box-shadow:
             0 14px 32px rgba(0, 0, 0, 0.48),
             0 6px 12px rgba(0, 0, 0, 0.35),
             0 0 0 1px rgba(255, 255, 255, 0.12),
             0 0 24px rgba(255, 215, 0, 0.15);
     }
-    60% {
-        transform: translate3d(calc(var(--pull-x) + 1.5px), calc(var(--pull-y) + 1.5px), 0) scale(1.1)
-            rotate(calc(var(--random-rot) + 2deg));
-        box-shadow:
-            0 14px 32px rgba(0, 0, 0, 0.48),
-            0 6px 12px rgba(0, 0, 0, 0.35),
-            0 0 0 1px rgba(255, 255, 255, 0.12),
-            0 0 24px rgba(255, 215, 0, 0.15);
-    }
-    80% {
-        transform: translate3d(calc(var(--pull-x) - 1px), calc(var(--pull-y) - 1px), 0) scale(1.1)
-            rotate(calc(var(--random-rot) - 1.5deg));
+    /* Light overshoot, then settle at 100% */
+    76% {
+        transform: translate3d(
+                calc(var(--pull-x) + var(--swirl-ox) * -0.08),
+                calc(var(--pull-y) + var(--swirl-oy) * -0.08),
+                0)
+            scale(1.11) rotate(calc(var(--random-rot) - var(--swirl-r-extra) * 0.25));
         box-shadow:
             0 14px 32px rgba(0, 0, 0, 0.48),
             0 6px 12px rgba(0, 0, 0, 0.35),

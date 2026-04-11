@@ -1750,6 +1750,7 @@ async function fetchWordDefinition(word, isFallback = false) {
      */
     async function animateShuffleCards(newState) {
         const PULL_MS = 400;
+        const PULL_STAGGER_MS = 11;
         const JIGGLE_MS = 500;
         const SNAP_MS = 600;
         const SNAP_STAGGER_MS = 10;
@@ -1796,13 +1797,23 @@ async function fetchWordDefinition(word, isFallback = false) {
 
         await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 
-        tiles.forEach((tile) => {
-            tile.style.animation = `shufflePullToCenter ${PULL_MS}ms cubic-bezier(0.33, 0.56, 0.2, 1) forwards`;
+        const nTiles = tiles.length;
+        const pullWallMs = PULL_MS + Math.max(0, nTiles - 1) * PULL_STAGGER_MS;
+        tiles.forEach((tile, i) => {
+            const delayMs = (nTiles - 1 - i) * PULL_STAGGER_MS;
+            tile.style.animation = `shufflePullToCenter ${PULL_MS}ms cubic-bezier(0.33, 0.56, 0.2, 1) ${delayMs}ms forwards`;
         });
-        await new Promise((resolve) => setTimeout(resolve, PULL_MS));
+        await new Promise((resolve) => setTimeout(resolve, pullWallMs));
 
         tiles.forEach((tile) => {
-            tile.style.animation = `shuffleCenterJiggle ${JIGGLE_MS}ms cubic-bezier(0.45, 0.05, 0.55, 0.95) forwards`;
+            const ang = Math.random() * Math.PI * 2;
+            const rad = 12 + Math.random() * 14;
+            tile.style.setProperty('--swirl-ox', `${Math.cos(ang) * rad}px`);
+            tile.style.setProperty('--swirl-oy', `${Math.sin(ang) * rad}px`);
+            tile.style.setProperty('--swirl-r-extra', `${(Math.random() * 18 - 9).toFixed(2)}deg`);
+        });
+        tiles.forEach((tile) => {
+            tile.style.animation = `shuffleCenterJiggle ${JIGGLE_MS}ms cubic-bezier(0.42, 0.03, 0.58, 0.97) forwards`;
         });
         await new Promise((resolve) => setTimeout(resolve, JIGGLE_MS));
 
@@ -1848,14 +1859,7 @@ async function fetchWordDefinition(word, isFallback = false) {
 
         tiles.forEach((tile) => {
             tile.classList.remove('shuffling');
-            tile.style.transition = '';
-            tile.style.transitionDelay = '';
-            tile.style.transform = '';
-            tile.style.boxShadow = '';
-            tile.style.opacity = '';
-            tile.style.removeProperty('--pull-x');
-            tile.style.removeProperty('--pull-y');
-            tile.style.removeProperty('--random-rot');
+            tile.removeAttribute('style');
         });
 
         boardElement.classList.remove('game-board--shuffling');
@@ -2150,7 +2154,15 @@ async function fetchWordDefinition(word, isFallback = false) {
         });
     }
 
+    function removeInteractionListeners() {
+        boardElement.removeEventListener('mousedown', handleInteractionStart);
+        boardElement.removeEventListener('mouseover', handleInteractionMove);
+        document.removeEventListener('mouseup', handleInteractionEnd);
+        document.removeEventListener('keydown', handleGlobalKeyPress);
+    }
+
     function addInteractionListeners() {
+        removeInteractionListeners();
         boardElement.addEventListener('mousedown', handleInteractionStart);
         boardElement.addEventListener('mouseover', handleInteractionMove);
         document.addEventListener('mouseup', handleInteractionEnd);
@@ -2305,6 +2317,7 @@ async function fetchWordDefinition(word, isFallback = false) {
                 const tile = document.querySelector(`[data-r='${coord[0]}'][data-c='${coord[1]}']`);
                 if (tile) {
                     setTimeout(() => {
+                        tile.classList.remove('grid-tile--entrance-suppressed');
                         tile.style.animation = 'tileExplode 0.5s ease-out forwards';
                     }, i * 50);
                 }
