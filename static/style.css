@@ -1899,3 +1899,22 @@ body::before {
     text-align: left; /* Optional: Makes it look even more like a real dictionary */
     line-height: 1.5; /* Optional: Gives the text some breathing room */
 }
+
+/* Stacked dictionary senses (HTML from fetchWordDefinition uses <br><br>) */
+.word-definition-body {
+    display: block;
+    text-align: left;
+    line-height: 1.65;
+    margin: 0;
+    overflow-wrap: break-word;
+}
+
+.word-definition-panel .word-definition-body {
+    color: #d1d5db;
+    font-size: 1em;
+}
+
+#word-details-popup .word-definition-body {
+    color: #f9fafb;
+    font-size: 1.05em;
+}

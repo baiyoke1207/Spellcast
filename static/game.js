@@ -406,7 +406,7 @@ function initGame(initialState, letterScores) {
                         <div style="color: #fbbf24; font-size: 0.85em; margin-bottom: 4px; font-style: italic;">
                             ${definition.partOfSpeech}
                         </div>
-                        <div style="color: #d1d5db; line-height: 1.5;">
+                        <div class="word-definition-body">
                             ${definition.definition}
                         </div>
                         ${definition.example ? '<div style="color: #9ca3af; font-size: 0.9em; margin-top: 8px; font-style: italic;">"' + definition.example + '"</div>' : ''}
@@ -424,6 +424,13 @@ function initGame(initialState, letterScores) {
         // Removed auto-dismiss on click outside - definitions stay visible
     }
     
+    function escapeHtml(text) {
+        if (text == null) return '';
+        const div = document.createElement('div');
+        div.textContent = String(text);
+        return div.innerHTML;
+    }
+
     // FEATURE #4: Fetch word definition from Free Dictionary API
 async function fetchWordDefinition(word, isFallback = false) {
         try {
@@ -441,18 +448,18 @@ async function fetchWordDefinition(word, isFallback = false) {
                 throw new Error('No definitions available in the data');
             }
             
-// Format up to 3 definitions
-            let combinedDefinitions = '';
+// Format up to 3 definitions (HTML line breaks; callers use innerHTML)
             const maxDefs = Math.min(meaning.definitions.length, 3);
-            
+            const parts = [];
             for (let i = 0; i < maxDefs; i++) {
+                const defText = escapeHtml(meaning.definitions[i].definition);
                 if (maxDefs > 1) {
-                    // Added \n\n to force a line break between numbered items!
-                    combinedDefinitions += `${i + 1}. ${meaning.definitions[i].definition}\n\n`; 
+                    parts.push(`${i + 1}. ${defText}`);
                 } else {
-                    combinedDefinitions += meaning.definitions[i].definition;
+                    parts.push(defText);
                 }
             }
+            const combinedDefinitions = maxDefs > 1 ? parts.join('<br><br>') : parts[0];
             
             const exampleSentence = meaning.definitions.find(def => def.example)?.example || '';
             
@@ -476,7 +483,7 @@ async function fetchWordDefinition(word, isFallback = false) {
                     // If the dictionary finds the base word, format it and return it!
                     if (fallbackAttempt && !fallbackAttempt.definition.includes('Valid word, but definition not found')) {
                         fallbackAttempt.word = word; // Keep the title as the word they played
-                        fallbackAttempt.definition = `*(Base word: ${baseWord})* ${fallbackAttempt.definition}`;
+                        fallbackAttempt.definition = `${escapeHtml(`*(Base word: ${baseWord})*`)} ${fallbackAttempt.definition}`;
                         return fallbackAttempt;
                     }
                 }
@@ -1967,8 +1974,8 @@ async function fetchWordDefinition(word, isFallback = false) {
             defLabel.textContent = 'Definition:';
             defLabel.style.cssText = 'color:#d1d5db;font-weight:600;margin-bottom:8px;font-size:0.95em;';
             const defText = document.createElement('div');
-            defText.textContent = def.definition;
-            defText.style.cssText = 'color:#f9fafb;line-height:1.6;font-size:1.05em;';
+            defText.className = 'word-definition-body';
+            defText.innerHTML = def.definition;
             defSection.appendChild(defLabel);
             defSection.appendChild(defText);
             popup.appendChild(defSection);
