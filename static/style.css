@@ -1900,13 +1900,22 @@ body::before {
     line-height: 1.5; /* Optional: Gives the text some breathing room */
 }
 
-/* Stacked dictionary senses (HTML from fetchWordDefinition uses <br><br>) */
+/* Stacked dictionary senses (HTML from fetchWordDefinition: one <p> per sense) */
 .word-definition-body {
     display: block;
     text-align: left;
     line-height: 1.65;
     margin: 0;
     overflow-wrap: break-word;
+}
+
+.word-definition-body .word-definition-sense {
+    margin: 0 0 0.75em 0;
+    text-align: left;
+}
+
+.word-definition-body .word-definition-sense:last-child {
+    margin-bottom: 0;
 }
 
 .word-definition-panel .word-definition-body {

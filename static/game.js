@@ -448,7 +448,7 @@ async function fetchWordDefinition(word, isFallback = false) {
                 throw new Error('No definitions available in the data');
             }
             
-// Format up to 3 definitions (HTML line breaks; callers use innerHTML)
+// Format up to 3 definitions (one <p.word-definition-sense> each; callers use innerHTML)
             const maxDefs = Math.min(meaning.definitions.length, 3);
             const parts = [];
             for (let i = 0; i < maxDefs; i++) {
@@ -459,7 +459,10 @@ async function fetchWordDefinition(word, isFallback = false) {
                     parts.push(defText);
                 }
             }
-            const combinedDefinitions = maxDefs > 1 ? parts.join('<br><br>') : parts[0];
+            // One block per sense so every item stacks (avoids <br> quirks between items)
+            const combinedDefinitions = parts
+                .map((p) => `<p class="word-definition-sense">${p}</p>`)
+                .join('');
             
             const exampleSentence = meaning.definitions.find(def => def.example)?.example || '';
             
