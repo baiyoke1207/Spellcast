@@ -196,6 +196,10 @@ body::before {
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
 }
 
+#game-board.game-board--shuffling {
+    z-index: 2;
+}
+
 /* ===== PATH SVG ANIMATIONS ===== */
 #path-svg { 
     position: absolute; 
@@ -277,6 +281,60 @@ body::before {
         opacity: 1;
         transform: scale(1) rotate(0deg);
     }
+}
+
+/* Shuffle ability: gather + slide toward center, overshoot snap (vars set in JS) */
+@keyframes tileShuffleGather {
+    0% {
+        transform: scale(1) translate3d(0, 0, 0) rotate(0deg);
+        filter: brightness(1);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    }
+    18% {
+        transform: scale(0.9) translate3d(calc(var(--gather-x) * 0.28), calc(var(--gather-y) * 0.28), 0)
+            rotate(calc(var(--gather-twist) * 0.22));
+        filter: brightness(1.06);
+    }
+    40% {
+        transform: scale(0.82) translate3d(var(--gather-x), var(--gather-y), 0) rotate(var(--gather-twist));
+        filter: brightness(1.1);
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
+    }
+    62% {
+        transform: scale(0.9) translate3d(calc(var(--gather-x) * -0.16), calc(var(--gather-y) * -0.16), 0)
+            rotate(calc(var(--gather-twist) * -0.35));
+        filter: brightness(1.02);
+    }
+    82% {
+        transform: scale(1.03) translate3d(0, 0, 0) rotate(0deg);
+        filter: brightness(1);
+        box-shadow: 0 6px 14px rgba(255, 215, 0, 0.25);
+    }
+    100% {
+        transform: scale(1) translate3d(0, 0, 0) rotate(0deg);
+        filter: brightness(1);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    }
+}
+
+/* New letters after shuffle: quick ripple settle from board center */
+@keyframes tileShuffleLand {
+    0% {
+        opacity: 0;
+        transform: scale(0.84) translateY(-5px);
+    }
+    58% {
+        opacity: 1;
+        transform: scale(1.04) translateY(0);
+    }
+    100% {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+.grid-tile.grid-tile--shuffle-land {
+    animation: tileShuffleLand 0.34s cubic-bezier(0.28, 0.9, 0.32, 1.12) backwards;
 }
 
 /* Hover effect */

@@ -105,7 +105,8 @@ function initGame(initialState, letterScores) {
         });
     }
 
-    function renderBoard() {
+    function renderBoard(options = {}) {
+        const shuffleReveal = options.shuffleReveal === true;
         boardElement.innerHTML = '<svg id="path-svg"></svg>';
         if (hasShimmer) {
             boardElement.classList.add('persistent-shimmer');
@@ -120,9 +121,14 @@ function initGame(initialState, letterScores) {
             tileElement.dataset.r = r;
             tileElement.dataset.c = c;
             
-            // FIX: Sequential animation from top-left to bottom-right
-            const animationDelay = (r * GRID_SIZE + c) * 0.05;
-            tileElement.style.animationDelay = `${animationDelay}s`;
+            if (shuffleReveal) {
+                tileElement.classList.add('grid-tile--shuffle-land');
+                const distFromCenter = Math.abs(r - 2) + Math.abs(c - 2);
+                tileElement.style.animationDelay = `${distFromCenter * 0.009}s`;
+            } else {
+                const animationDelay = (r * GRID_SIZE + c) * 0.05;
+                tileElement.style.animationDelay = `${animationDelay}s`;
+            }
             
             const letterSpan = document.createElement('span');
             letterSpan.textContent = tile.letter;
@@ -548,7 +554,7 @@ async function fetchWordDefinition(word, isFallback = false) {
             await showRoundTransition(newState.round);
         }
 
-        renderBoard();
+        renderBoard({ shuffleReveal: animationType === 'shuffle' });
         updateUI();
     }
     
@@ -1740,22 +1746,44 @@ async function fetchWordDefinition(word, isFallback = false) {
 
     async function animateShuffleCards() {
         const tiles = Array.from(document.querySelectorAll('.grid-tile'));
-        
-        tiles.forEach((tile, i) => {
-            setTimeout(() => {
-                tile.style.animation = 'flipDown 0.3s ease forwards';
-            }, i * 20);
+        if (tiles.length === 0) return;
+
+        const CR = 2;
+        const CC = 2;
+        const PULL_PX = 13;
+        const GATHER_DURATION_MS = 520;
+        const STAGGER_PER_STEP_S = 0.01;
+        const easing = 'cubic-bezier(0.32, 0.72, 0, 1)';
+
+        boardElement.classList.add('game-board--shuffling');
+
+        tiles.forEach((tile) => {
+            const r = parseInt(tile.dataset.r, 10);
+            const c = parseInt(tile.dataset.c, 10);
+            const gx = (CC - c) * PULL_PX;
+            const gy = (CR - r) * PULL_PX;
+            const twist = ((r * 5 + c * 7) % 9 - 4) * 2.4;
+            tile.style.setProperty('--gather-x', `${gx}px`);
+            tile.style.setProperty('--gather-y', `${gy}px`);
+            tile.style.setProperty('--gather-twist', `${twist}deg`);
+            const manhattan = Math.abs(r - CR) + Math.abs(c - CC);
+            tile.style.animationDelay = `${manhattan * STAGGER_PER_STEP_S}s`;
+            tile.style.animation = `tileShuffleGather ${GATHER_DURATION_MS / 1000}s ${easing} both`;
         });
-        
-        await new Promise(resolve => setTimeout(resolve, 600));
-        
-        tiles.forEach((tile, i) => {
-            setTimeout(() => {
-                tile.style.animation = 'shuffleToCenter 0.4s ease forwards';
-            }, i * 15);
+
+        const maxManhattan = 4;
+        const totalMs =
+            GATHER_DURATION_MS + maxManhattan * STAGGER_PER_STEP_S * 1000 + 50;
+        await new Promise((resolve) => setTimeout(resolve, totalMs));
+
+        tiles.forEach((tile) => {
+            tile.style.animation = '';
+            tile.style.animationDelay = '';
+            tile.style.removeProperty('--gather-x');
+            tile.style.removeProperty('--gather-y');
+            tile.style.removeProperty('--gather-twist');
         });
-        
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        boardElement.classList.remove('game-board--shuffling');
     }
 
     // FIX #2 & BUG FIX #5: Enhanced message display with auto-clear
