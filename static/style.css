@@ -226,6 +226,12 @@ body::before {
 }
 
 /* ===== TILE STYLES & ANIMATIONS ===== */
+/* Shuffle rebuild: block tileEntrance + nth-child delays until next full board render */
+.grid-tile.grid-tile--entrance-suppressed {
+    animation: none !important;
+    animation-delay: 0s !important;
+}
+
 .grid-tile { 
     position: relative; 
     width: 100%; 
@@ -296,7 +302,7 @@ body::before {
         transform: translate3d(0, 0, 0) scale(1) rotate(0deg);
         box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
     }
-    10% {
+    12% {
         transform: translate3d(0, 0, 0) scale(1.1) rotate(0deg);
         box-shadow:
             0 14px 32px rgba(0, 0, 0, 0.48),
@@ -323,45 +329,36 @@ body::before {
             0 0 0 1px rgba(255, 255, 255, 0.12),
             0 0 24px rgba(255, 215, 0, 0.15);
     }
-    18% {
-        transform: translate3d(calc(var(--pull-x) + 5px), calc(var(--pull-y) - 4px), 0) scale(1.1)
-            rotate(calc(var(--random-rot) + 6deg));
+    20% {
+        transform: translate3d(calc(var(--pull-x) + 2px), calc(var(--pull-y) - 2px), 0) scale(1.1)
+            rotate(calc(var(--random-rot) + 3deg));
         box-shadow:
             0 14px 32px rgba(0, 0, 0, 0.48),
             0 6px 12px rgba(0, 0, 0, 0.35),
             0 0 0 1px rgba(255, 255, 255, 0.12),
             0 0 24px rgba(255, 215, 0, 0.15);
     }
-    36% {
-        transform: translate3d(calc(var(--pull-x) - 4px), calc(var(--pull-y) + 5px), 0) scale(1.1)
-            rotate(calc(var(--random-rot) - 5deg));
+    40% {
+        transform: translate3d(calc(var(--pull-x) - 2px), calc(var(--pull-y) + 2px), 0) scale(1.1)
+            rotate(calc(var(--random-rot) - 2.5deg));
         box-shadow:
             0 14px 32px rgba(0, 0, 0, 0.48),
             0 6px 12px rgba(0, 0, 0, 0.35),
             0 0 0 1px rgba(255, 255, 255, 0.12),
             0 0 24px rgba(255, 215, 0, 0.15);
     }
-    54% {
-        transform: translate3d(calc(var(--pull-x) + 4px), calc(var(--pull-y) + 3px), 0) scale(1.1)
-            rotate(calc(var(--random-rot) + 4deg));
-        box-shadow:
-            0 14px 32px rgba(0, 0, 0, 0.48),
-            0 6px 12px rgba(0, 0, 0, 0.35),
-            0 0 0 1px rgba(255, 255, 255, 0.12),
-            0 0 24px rgba(255, 215, 0, 0.15);
-    }
-    72% {
-        transform: translate3d(calc(var(--pull-x) - 5px), calc(var(--pull-y) - 3px), 0) scale(1.1)
-            rotate(calc(var(--random-rot) - 6deg));
-        box-shadow:
-            0 14px 32px rgba(0, 0, 0, 0.48),
-            0 6px 12px rgba(0, 0, 0, 0.35),
-            0 0 0 1px rgba(255, 255, 255, 0.12),
-            0 0 24px rgba(255, 215, 0, 0.15);
-    }
-    88% {
-        transform: translate3d(calc(var(--pull-x) + 2px), calc(var(--pull-y) + 1px), 0) scale(1.1)
+    60% {
+        transform: translate3d(calc(var(--pull-x) + 1.5px), calc(var(--pull-y) + 1.5px), 0) scale(1.1)
             rotate(calc(var(--random-rot) + 2deg));
+        box-shadow:
+            0 14px 32px rgba(0, 0, 0, 0.48),
+            0 6px 12px rgba(0, 0, 0, 0.35),
+            0 0 0 1px rgba(255, 255, 255, 0.12),
+            0 0 24px rgba(255, 215, 0, 0.15);
+    }
+    80% {
+        transform: translate3d(calc(var(--pull-x) - 1px), calc(var(--pull-y) - 1px), 0) scale(1.1)
+            rotate(calc(var(--random-rot) - 1.5deg));
         box-shadow:
             0 14px 32px rgba(0, 0, 0, 0.48),
             0 6px 12px rgba(0, 0, 0, 0.35),

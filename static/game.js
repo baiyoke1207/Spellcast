@@ -122,7 +122,9 @@ function initGame(initialState, letterScores) {
             tileElement.dataset.c = c;
             
             if (skipTileEntrance) {
+                tileElement.classList.add('grid-tile--entrance-suppressed');
                 tileElement.style.animation = 'none';
+                tileElement.style.opacity = '0';
             } else {
                 const animationDelay = (r * GRID_SIZE + c) * 0.05;
                 tileElement.style.animationDelay = `${animationDelay}s`;
@@ -1743,13 +1745,14 @@ async function fetchWordDefinition(word, isFallback = false) {
     }
 
     /**
-     * Scrabble-style table scramble: lift → pull to board center (getBoundingClientRect) → jiggle pile →
-     * FLIP snap to new grid cells. Total ~0.65–0.75s.
+     * Scrabble-style table scramble: lift → pull to center → jiggle pile → staggered FLIP snap.
+     * Pull + jiggle + snap ≈ 1.5s; stagger extends the snap segment slightly (last tile ends last).
      */
     async function animateShuffleCards(newState) {
-        const PULL_MS = 155;
-        const JIGGLE_MS = 360;
-        const SNAP_MS = 185;
+        const PULL_MS = 400;
+        const JIGGLE_MS = 500;
+        const SNAP_MS = 600;
+        const SNAP_STAGGER_MS = 10;
         const DEFAULT_TILE_SHADOW = '0 4px 8px rgba(0, 0, 0, 0.2)';
 
         const applyState = () => {
@@ -1794,12 +1797,12 @@ async function fetchWordDefinition(word, isFallback = false) {
         await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 
         tiles.forEach((tile) => {
-            tile.style.animation = `shufflePullToCenter ${PULL_MS}ms cubic-bezier(0.25, 0.85, 0.32, 1) forwards`;
+            tile.style.animation = `shufflePullToCenter ${PULL_MS}ms cubic-bezier(0.33, 0.56, 0.2, 1) forwards`;
         });
         await new Promise((resolve) => setTimeout(resolve, PULL_MS));
 
         tiles.forEach((tile) => {
-            tile.style.animation = `shuffleCenterJiggle ${JIGGLE_MS}ms ease-in-out forwards`;
+            tile.style.animation = `shuffleCenterJiggle ${JIGGLE_MS}ms cubic-bezier(0.45, 0.05, 0.55, 0.95) forwards`;
         });
         await new Promise((resolve) => setTimeout(resolve, JIGGLE_MS));
 
@@ -1826,26 +1829,30 @@ async function fetchWordDefinition(word, isFallback = false) {
             tile.style.animation = 'none';
             tile.style.transform = `translate3d(${dx}px, ${dy}px, 0) scale(1.1) rotate(var(--random-rot))`;
             tile.style.boxShadow =
-                '0 14px 32px rgba(0, 0, 0, 0.48), 0 6px 12px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.12)';
+                '0 14px 32px rgba(0, 0, 0, 0.48), 0 6px 12px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.12), 0 0 24px rgba(255, 215, 0, 0.15)';
+            tile.style.opacity = '1';
         });
 
         boardElement.offsetHeight;
 
-        tiles.forEach((tile) => {
-            tile.style.transition =
-                `transform ${SNAP_MS}ms cubic-bezier(0.2, 0.95, 0.25, 1), box-shadow ${SNAP_MS}ms ease-out`;
+        const snapEase = 'cubic-bezier(0.18, 0.88, 0.24, 1)';
+        tiles.forEach((tile, i) => {
+            const delay = i * SNAP_STAGGER_MS;
+            tile.style.transition = `transform ${SNAP_MS}ms ${snapEase} ${delay}ms, box-shadow ${SNAP_MS}ms ease-out ${delay}ms`;
             tile.style.transform = 'translate3d(0, 0, 0) scale(1) rotate(0deg)';
             tile.style.boxShadow = DEFAULT_TILE_SHADOW;
         });
 
-        await new Promise((resolve) => setTimeout(resolve, SNAP_MS + 40));
+        const snapTotalMs = SNAP_MS + Math.max(0, tiles.length - 1) * SNAP_STAGGER_MS + 80;
+        await new Promise((resolve) => setTimeout(resolve, snapTotalMs));
 
         tiles.forEach((tile) => {
             tile.classList.remove('shuffling');
             tile.style.transition = '';
+            tile.style.transitionDelay = '';
             tile.style.transform = '';
-            tile.style.animation = '';
             tile.style.boxShadow = '';
+            tile.style.opacity = '';
             tile.style.removeProperty('--pull-x');
             tile.style.removeProperty('--pull-y');
             tile.style.removeProperty('--random-rot');
