@@ -1649,7 +1649,6 @@ async function fetchWordDefinition(word, isFallback = false) {
             return;
         }
 
-        // Clean slate without begging the CSS engine for a reflow
         tiles.forEach(tile => {
             tile.classList.remove('shuffling');
             tile.removeAttribute('style');
@@ -1668,8 +1667,11 @@ async function fetchWordDefinition(word, isFallback = false) {
         const center0 = measureBoardCenter();
         const nTiles = tiles.length;
         const pullWallMs = PULL_MS + Math.max(0, nTiles - 1) * PULL_STAGGER_MS;
+        
+        // Array to store our WAAPI animations so we can kill them later
+        const pullAnims = [];
 
-        // --- PHASE 1: THE WAAPI TAKEOVER ---
+        // --- PHASE 1: THE WAAPI PULL ---
         tiles.forEach((tile, i) => {
             const tr = tile.getBoundingClientRect();
             const tcx = tr.left + tr.width / 2;
@@ -1678,46 +1680,49 @@ async function fetchWordDefinition(word, isFallback = false) {
             const pullY = center0.y - tcy;
             const randomRotDeg = Math.random() * 80 - 40;
             
-            // We keep these vars just in case your Jiggle CSS needs them
             tile.style.setProperty('--pull-x', `${pullX}px`);
             tile.style.setProperty('--pull-y', `${pullY}px`);
             tile.style.setProperty('--random-rot', `${randomRotDeg}deg`);
             tile.classList.add('shuffling');
 
+            // Save the exact final state so we can apply it before killing WAAPI
+            tile.dataset.finalTransform = `translate3d(${pullX}px, ${pullY}px, 0) scale(1.1) rotate(${randomRotDeg}deg)`;
+            tile.dataset.finalBoxShadow = '0 14px 32px rgba(0, 0, 0, 0.48), 0 6px 12px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.12), 0 0 24px rgba(255, 215, 0, 0.15)';
+
             const delayMs = (nTiles - 1 - i) * PULL_STAGGER_MS;
 
-            // Speak directly to the GPU: Bypasses style.css completely
-            tile.animate([
-                { 
-                    transform: 'translate3d(0, 0, 0) scale(1) rotate(0deg)', 
-                    boxShadow: DEFAULT_TILE_SHADOW 
-                },
-                { 
-                    transform: 'translate3d(0, 0, 0) scale(1.1) rotate(0deg)', 
-                    boxShadow: '0 14px 32px rgba(0, 0, 0, 0.48), 0 6px 12px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.12), 0 0 24px rgba(255, 215, 0, 0.15)', 
-                    offset: 0.12 
-                },
-                { 
-                    transform: `translate3d(${pullX}px, ${pullY}px, 0) scale(1.1) rotate(${randomRotDeg}deg)`, 
-                    boxShadow: '0 14px 32px rgba(0, 0, 0, 0.48), 0 6px 12px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.12), 0 0 24px rgba(255, 215, 0, 0.15)' 
-                }
+            const anim = tile.animate([
+                { transform: 'translate3d(0, 0, 0) scale(1) rotate(0deg)', boxShadow: DEFAULT_TILE_SHADOW },
+                { transform: 'translate3d(0, 0, 0) scale(1.1) rotate(0deg)', boxShadow: tile.dataset.finalBoxShadow, offset: 0.12 },
+                { transform: tile.dataset.finalTransform, boxShadow: tile.dataset.finalBoxShadow }
             ], {
                 duration: PULL_MS,
                 delay: delayMs,
                 easing: 'cubic-bezier(0.33, 0.56, 0.2, 1)',
                 fill: 'forwards'
             });
+            
+            pullAnims.push(anim);
         });
 
         await new Promise((resolve) => setTimeout(resolve, pullWallMs));
 
-        // --- PHASE 2: SWIRL & JIGGLE ---
-        tiles.forEach((tile) => {
+        // --- PHASE 2: THE BATON PASS & JIGGLE ---
+        tiles.forEach((tile, i) => {
+            // 1. Hardcode the final position so it doesn't snap back when WAAPI dies
+            tile.style.transform = tile.dataset.finalTransform;
+            tile.style.boxShadow = tile.dataset.finalBoxShadow;
+            
+            // 2. Kill the WAAPI lock! (Releases control back to CSS)
+            pullAnims[i].cancel();
+
+            // 3. Apply the Swirl & Jiggle (CSS is now back in charge!)
             const ang = Math.random() * Math.PI * 2;
             const rad = 12 + Math.random() * 14;
             tile.style.setProperty('--swirl-ox', `${Math.cos(ang) * rad}px`);
             tile.style.setProperty('--swirl-oy', `${Math.sin(ang) * rad}px`);
             tile.style.setProperty('--swirl-r-extra', `${(Math.random() * 18 - 9).toFixed(2)}deg`);
+            
             tile.style.animation = `shuffleCenterJiggle ${JIGGLE_MS}ms cubic-bezier(0.42, 0.03, 0.58, 0.97) forwards`;
         });
         
