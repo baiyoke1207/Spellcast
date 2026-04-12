@@ -1628,7 +1628,7 @@ async function fetchWordDefinition(word, isFallback = false) {
      * Scrabble-style table scramble: lift → pull to center → jiggle pile → staggered FLIP snap.
      * Pull + jiggle + snap ≈ 1.5s; stagger extends the snap segment slightly (last tile ends last).
      */
-async function animateShuffleCards(newState) {
+    async function animateShuffleCards(newState) {
         const PULL_MS = 400;
         const PULL_STAGGER_MS = 11;
         const JIGGLE_MS = 500;
@@ -1649,20 +1649,11 @@ async function animateShuffleCards(newState) {
             return;
         }
 
-        // --- THE NUCLEAR REFLOW ---
-        // Force the browser's graphics engine to completely forget these tiles
+        // Clean slate without begging the CSS engine for a reflow
         tiles.forEach(tile => {
-            tile.style.display = 'none'; 
-        });
-        document.body.offsetHeight; // Flush CSS cache
-        
-        tiles.forEach(tile => {
-            tile.style.display = ''; 
             tile.classList.remove('shuffling');
             tile.removeAttribute('style');
         });
-        document.body.offsetHeight; // Rebuild tiles cleanly
-        // -----------------------------------
 
         boardElement.classList.add('game-board--shuffling');
 
@@ -1675,50 +1666,67 @@ async function animateShuffleCards(newState) {
         };
 
         const center0 = measureBoardCenter();
+        const nTiles = tiles.length;
+        const pullWallMs = PULL_MS + Math.max(0, nTiles - 1) * PULL_STAGGER_MS;
 
-        tiles.forEach((tile) => {
+        // --- PHASE 1: THE WAAPI TAKEOVER ---
+        tiles.forEach((tile, i) => {
             const tr = tile.getBoundingClientRect();
             const tcx = tr.left + tr.width / 2;
             const tcy = tr.top + tr.height / 2;
             const pullX = center0.x - tcx;
             const pullY = center0.y - tcy;
             const randomRotDeg = Math.random() * 80 - 40;
+            
+            // We keep these vars just in case your Jiggle CSS needs them
             tile.style.setProperty('--pull-x', `${pullX}px`);
             tile.style.setProperty('--pull-y', `${pullY}px`);
             tile.style.setProperty('--random-rot', `${randomRotDeg}deg`);
             tile.classList.add('shuffling');
-            
-            // Explicitly force the animation to 'none' and trigger a micro-reflow
-            tile.style.animation = 'none';
-            void tile.offsetWidth;
-        });
 
-        // Give the browser 30ms to clear its animation cache before attaching the new one
-        await new Promise((resolve) => setTimeout(resolve, 30));
-
-        const nTiles = tiles.length;
-        const pullWallMs = PULL_MS + Math.max(0, nTiles - 1) * PULL_STAGGER_MS;
-        tiles.forEach((tile, i) => {
             const delayMs = (nTiles - 1 - i) * PULL_STAGGER_MS;
-            tile.style.animation = `shufflePullToCenter ${PULL_MS}ms cubic-bezier(0.33, 0.56, 0.2, 1) ${delayMs}ms forwards`;
+
+            // Speak directly to the GPU: Bypasses style.css completely
+            tile.animate([
+                { 
+                    transform: 'translate3d(0, 0, 0) scale(1) rotate(0deg)', 
+                    boxShadow: DEFAULT_TILE_SHADOW 
+                },
+                { 
+                    transform: 'translate3d(0, 0, 0) scale(1.1) rotate(0deg)', 
+                    boxShadow: '0 14px 32px rgba(0, 0, 0, 0.48), 0 6px 12px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.12), 0 0 24px rgba(255, 215, 0, 0.15)', 
+                    offset: 0.12 
+                },
+                { 
+                    transform: `translate3d(${pullX}px, ${pullY}px, 0) scale(1.1) rotate(${randomRotDeg}deg)`, 
+                    boxShadow: '0 14px 32px rgba(0, 0, 0, 0.48), 0 6px 12px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.12), 0 0 24px rgba(255, 215, 0, 0.15)' 
+                }
+            ], {
+                duration: PULL_MS,
+                delay: delayMs,
+                easing: 'cubic-bezier(0.33, 0.56, 0.2, 1)',
+                fill: 'forwards'
+            });
         });
+
         await new Promise((resolve) => setTimeout(resolve, pullWallMs));
 
+        // --- PHASE 2: SWIRL & JIGGLE ---
         tiles.forEach((tile) => {
             const ang = Math.random() * Math.PI * 2;
             const rad = 12 + Math.random() * 14;
             tile.style.setProperty('--swirl-ox', `${Math.cos(ang) * rad}px`);
             tile.style.setProperty('--swirl-oy', `${Math.sin(ang) * rad}px`);
             tile.style.setProperty('--swirl-r-extra', `${(Math.random() * 18 - 9).toFixed(2)}deg`);
-        });
-        tiles.forEach((tile) => {
             tile.style.animation = `shuffleCenterJiggle ${JIGGLE_MS}ms cubic-bezier(0.42, 0.03, 0.58, 0.97) forwards`;
         });
+        
         await new Promise((resolve) => setTimeout(resolve, JIGGLE_MS));
 
         applyState();
         renderBoard({ skipTileEntrance: true });
 
+        // --- PHASE 3: SNAP TO GRID ---
         tiles = Array.from(document.querySelectorAll('.grid-tile'));
         tiles.forEach((tile) => {
             const randomRotDeg = Math.random() * 80 - 40;
@@ -1738,8 +1746,7 @@ async function animateShuffleCards(newState) {
             tile.style.transition = 'none';
             tile.style.animation = 'none';
             tile.style.transform = `translate3d(${dx}px, ${dy}px, 0) scale(1.1) rotate(var(--random-rot))`;
-            tile.style.boxShadow =
-                '0 14px 32px rgba(0, 0, 0, 0.48), 0 6px 12px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.12), 0 0 24px rgba(255, 215, 0, 0.15)';
+            tile.style.boxShadow = '0 14px 32px rgba(0, 0, 0, 0.48), 0 6px 12px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.12), 0 0 24px rgba(255, 215, 0, 0.15)';
             tile.style.opacity = '1';
         });
 
