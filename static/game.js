@@ -1681,6 +1681,11 @@ async function fetchWordDefinition(word, isFallback = false) {
             const tcy = tr.top + tr.height / 2;
             const pullX = center0.x - tcx;
             const pullY = center0.y - tcy;
+            
+            // --- OUR WIRETAP ---
+            console.log(`Tile Debug -> pullX: ${pullX}, pullY: ${pullY}`);
+            // -------------------
+
             const randomRotDeg = Math.random() * 80 - 40;
             tile.style.setProperty('--pull-x', `${pullX}px`);
             tile.style.setProperty('--pull-y', `${pullY}px`);
