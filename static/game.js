@@ -1203,7 +1203,7 @@ async function fetchWordDefinition(word, isFallback = false) {
         for (let i = 0; i < 300; i++) {
             const particle = document.createElement('div');
             const shapes = ['⭐', '💎', '●'];
-            const colors = ['#ff0000', '#ff7f00', '#ffff00', '#00ff00', '#0000ff', '#8b00ff', '#ff00ff'];
+            const colors = ['#ff0000', '#ff7f00', '#ffff00', '#00ff00', '#ff1493', '#00ffff'];
             const angle = Math.random() * Math.PI * 2;
             const velocity = 200 + Math.random() * 400;
             const vx = Math.cos(angle) * velocity;
@@ -1239,126 +1239,6 @@ async function fetchWordDefinition(word, isFallback = false) {
     async function createInfiniteEffect(wordDisplay) {
         // Reality break overlay with fractal noise
         const realityBreak = document.createElement('div');
-        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-        svg.style.cssText = 'position:absolute;width:0;height:0;';
-        svg.innerHTML = `
-            <defs>
-                <filter id="fractalNoise">
-                    <feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="5" seed="2">
-                        <animate attributeName="baseFrequency" 
-                            values="0.02;0.08;0.02" 
-                            dur="3s" 
-                            repeatCount="indefinite"/>
-                    </feTurbulence>
-                    <feColorMatrix type="hueRotate">
-                        <animate attributeName="values" 
-                            from="0" 
-                            to="360" 
-                            dur="6s" 
-                            repeatCount="indefinite"/>
-                    </feColorMatrix>
-                    <feBlend in="SourceGraphic" mode="overlay"/>
-                </filter>
-            </defs>
-        `;
-        realityBreak.style.cssText = `
-            position:fixed;top:0;left:0;width:100%;height:100%;
-            background:rgba(0,0,0,0.4);
-            filter:url(#fractalNoise);
-            opacity:0.7;
-            z-index:9997;
-            pointer-events:none;
-        `;
-        realityBreak.appendChild(svg);
-        document.body.appendChild(realityBreak);
-        
-        // Matrix rain effect (50 columns)
-        for (let col = 0; col < 50; col++) {
-            const column = document.createElement('div');
-            column.style.cssText = `
-                position:fixed;
-                left:${(col / 50) * 100}%;
-                top:0;
-                width:20px;
-                font-family:monospace;
-                font-size:14px;
-                color:#00ff41;
-                text-shadow:0 0 8px #00ff41;
-                line-height:20px;
-                z-index:9998;
-                pointer-events:none;
-                animation:matrixFall ${3 + Math.random() * 2}s linear infinite;
-                animation-delay:${Math.random() * 2}s;
-            `;
-            
-            // Generate random letters
-            const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-            for (let i = 0; i < 30; i++) {
-                const char = document.createElement('div');
-                char.textContent = letters[Math.floor(Math.random() * letters.length)];
-                char.style.opacity = Math.random();
-                column.appendChild(char);
-            }
-            
-            document.body.appendChild(column);
-            setTimeout(() => column.remove(), 8000);
-        }
-        
-        // Holographic tiles on board
-        const tiles = document.querySelectorAll('.grid-tile');
-        tiles.forEach(tile => {
-            tile.style.background = 'linear-gradient(45deg, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #8b00ff)';
-            tile.style.backgroundSize = '400% 400%';
-            tile.style.animation = 'rainbowShift 3s ease-in-out infinite';
-        });
-        
-        // Aurora borealis background
-        const aurora = document.createElement('div');
-        aurora.style.cssText = `
-            position:absolute;
-            top:0;
-            left:0;
-            width:100%;
-            height:100%;
-            background:linear-gradient(90deg, 
-                rgba(0,255,255,0.3) 0%, 
-                rgba(255,0,255,0.3) 25%, 
-                rgba(255,255,0,0.3) 50%, 
-                rgba(0,255,255,0.3) 75%, 
-                rgba(255,0,255,0.3) 100%);
-            background-size:200% 100%;
-            animation:auroraWave 6s ease-in-out infinite;
-            pointer-events:none;
-            z-index:1;
-            opacity:0.6;
-        `;
-        boardElement.appendChild(aurora);
-        
-        // Animated glowing message
-        wordDisplay.style.animation = 'kaleidoscope 2s linear infinite, timeDilation 3s ease-in-out infinite';
-        
-        // Cleanup after 6 seconds
-        setTimeout(() => {
-            realityBreak.remove();
-            wordDisplay.style.animation = '';
-            aurora.remove();
-            tiles.forEach(tile => {
-                tile.style.background = '';
-                tile.style.backgroundSize = '';
-                tile.style.animation = '';
-            });
-        }, 6000);
-    }
-
-    // ADVANCED FEATURE #2: TWO-PHASE REALITY SHATTER
-    // Phase 1: Crack lines (SVG paths)
-    // Phase 2: Glass pieces break apart (polygon animation)
-    async function createRealityShatterEnhanced() {
-        await createRealityShatterWithGlassBreak();
-    }
-    
-    // REALISTIC REALITY SHATTER with SVG path-based cracks + GLASS BREAK ANIMATION
-    async function createRealityShatterWithGlassBreak() {
         const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
         svg.style.cssText = `
             position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
@@ -1769,8 +1649,8 @@ async function fetchWordDefinition(word, isFallback = false) {
             return;
         }
 
-        // --- NEW: THE CLEAN SLATE PHASE ---
-        // Aggressively strip any residual CSS from a previous shuffle
+        // --- CLEAN SLATE PHASE ---
+        // Remove all inline styles, transitions, transforms, and classes from tiles
         tiles.forEach(tile => {
             tile.classList.remove('shuffling');
             tile.removeAttribute('style');
@@ -1778,9 +1658,9 @@ async function fetchWordDefinition(word, isFallback = false) {
             tile.style.animation = 'none';
             tile.style.transform = 'none';
         });
-        
-        // Force the browser to recalculate layout so it doesn't read ghost coordinates
-        document.body.offsetHeight; 
+
+        // Trigger a browser reflow to reset animations
+        document.body.offsetHeight;
         // -----------------------------------
 
         boardElement.classList.add('game-board--shuffling');
