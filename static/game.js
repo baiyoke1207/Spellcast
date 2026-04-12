@@ -1628,7 +1628,7 @@ async function fetchWordDefinition(word, isFallback = false) {
      * Scrabble-style table scramble: lift → pull to center → jiggle pile → staggered FLIP snap.
      * Pull + jiggle + snap ≈ 1.5s; stagger extends the snap segment slightly (last tile ends last).
      */
-    async function animateShuffleCards(newState) {
+async function animateShuffleCards(newState) {
         const PULL_MS = 400;
         const PULL_STAGGER_MS = 11;
         const JIGGLE_MS = 500;
@@ -1649,18 +1649,19 @@ async function fetchWordDefinition(word, isFallback = false) {
             return;
         }
 
-        // --- CLEAN SLATE PHASE ---
-        // Remove all inline styles, transitions, transforms, and classes from tiles
+        // --- THE NUCLEAR REFLOW ---
+        // Force the browser's graphics engine to completely forget these tiles
         tiles.forEach(tile => {
+            tile.style.display = 'none'; 
+        });
+        document.body.offsetHeight; // Flush CSS cache
+        
+        tiles.forEach(tile => {
+            tile.style.display = ''; 
             tile.classList.remove('shuffling');
             tile.removeAttribute('style');
-            tile.style.transition = 'none';
-            tile.style.animation = 'none';
-            tile.style.transform = 'none';
         });
-
-        // Trigger a browser reflow to reset animations
-        document.body.offsetHeight;
+        document.body.offsetHeight; // Rebuild tiles cleanly
         // -----------------------------------
 
         boardElement.classList.add('game-board--shuffling');
@@ -1681,20 +1682,19 @@ async function fetchWordDefinition(word, isFallback = false) {
             const tcy = tr.top + tr.height / 2;
             const pullX = center0.x - tcx;
             const pullY = center0.y - tcy;
-            
-            // --- OUR WIRETAP ---
-            console.log(`Tile Debug -> pullX: ${pullX}, pullY: ${pullY}`);
-            // -------------------
-
             const randomRotDeg = Math.random() * 80 - 40;
             tile.style.setProperty('--pull-x', `${pullX}px`);
             tile.style.setProperty('--pull-y', `${pullY}px`);
             tile.style.setProperty('--random-rot', `${randomRotDeg}deg`);
             tile.classList.add('shuffling');
+            
+            // Explicitly force the animation to 'none' and trigger a micro-reflow
             tile.style.animation = 'none';
+            void tile.offsetWidth;
         });
 
-        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        // Give the browser 30ms to clear its animation cache before attaching the new one
+        await new Promise((resolve) => setTimeout(resolve, 30));
 
         const nTiles = tiles.length;
         const pullWallMs = PULL_MS + Math.max(0, nTiles - 1) * PULL_STAGGER_MS;
@@ -1756,8 +1756,6 @@ async function fetchWordDefinition(word, isFallback = false) {
         const snapTotalMs = SNAP_MS + Math.max(0, tiles.length - 1) * SNAP_STAGGER_MS + 80;
         await new Promise((resolve) => setTimeout(resolve, snapTotalMs));
 
-        // --- NEW: THE FINAL SCRUB ---
-        // Make absolutely sure no inline transitions or styles are left behind
         tiles.forEach((tile) => {
             tile.classList.remove('shuffling');
             tile.removeAttribute('style');
