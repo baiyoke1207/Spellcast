@@ -1667,11 +1667,8 @@ async function fetchWordDefinition(word, isFallback = false) {
         const center0 = measureBoardCenter();
         const nTiles = tiles.length;
         const pullWallMs = PULL_MS + Math.max(0, nTiles - 1) * PULL_STAGGER_MS;
-        
-        // Array to store our WAAPI animations so we can kill them later
-        const pullAnims = [];
 
-        // --- PHASE 1: THE WAAPI PULL ---
+        // --- PHASE 1: THE WAAPI PULL (Simplified & Forward Order) ---
         tiles.forEach((tile, i) => {
             const tr = tile.getBoundingClientRect();
             const tcx = tr.left + tr.width / 2;
@@ -1680,54 +1677,56 @@ async function fetchWordDefinition(word, isFallback = false) {
             const pullY = center0.y - tcy;
             const randomRotDeg = Math.random() * 80 - 40;
             
-            tile.style.setProperty('--pull-x', `${pullX}px`);
-            tile.style.setProperty('--pull-y', `${pullY}px`);
-            tile.style.setProperty('--random-rot', `${randomRotDeg}deg`);
+            // Save these specific values securely on the tile so Phase 2 can use them
+            tile.dataset.pullX = pullX;
+            tile.dataset.pullY = pullY;
+            tile.dataset.rot = randomRotDeg;
+            
             tile.classList.add('shuffling');
 
-            // Save the exact final state so we can apply it before killing WAAPI
-            tile.dataset.finalTransform = `translate3d(${pullX}px, ${pullY}px, 0) scale(1.1) rotate(${randomRotDeg}deg)`;
-            tile.dataset.finalBoxShadow = '0 14px 32px rgba(0, 0, 0, 0.48), 0 6px 12px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.12), 0 0 24px rgba(255, 215, 0, 0.15)';
+            const delayMs = i * PULL_STAGGER_MS; // Forward order: 1st to 25th
 
-            const delayMs = (nTiles - 1 - i) * PULL_STAGGER_MS;
-
-            const anim = tile.animate([
-                { transform: 'translate3d(0, 0, 0) scale(1) rotate(0deg)', boxShadow: DEFAULT_TILE_SHADOW },
-                { transform: 'translate3d(0, 0, 0) scale(1.1) rotate(0deg)', boxShadow: tile.dataset.finalBoxShadow, offset: 0.12 },
-                { transform: tile.dataset.finalTransform, boxShadow: tile.dataset.finalBoxShadow }
+            // Pure A-to-B movement
+            tile.animate([
+                { transform: 'translate3d(0, 0, 0) rotate(0deg)' },
+                { transform: `translate3d(${pullX}px, ${pullY}px, 0) rotate(${randomRotDeg}deg)` }
             ], {
                 duration: PULL_MS,
                 delay: delayMs,
                 easing: 'cubic-bezier(0.33, 0.56, 0.2, 1)',
                 fill: 'forwards'
             });
-            
-            pullAnims.push(anim);
         });
 
         await new Promise((resolve) => setTimeout(resolve, pullWallMs));
 
-        // --- PHASE 2: THE BATON PASS & JIGGLE ---
-        tiles.forEach((tile, i) => {
-            // 1. Hardcode the final position so it doesn't snap back when WAAPI dies
-            tile.style.transform = tile.dataset.finalTransform;
-            tile.style.boxShadow = tile.dataset.finalBoxShadow;
+        // --- PHASE 2: THE WAAPI JIGGLE ---
+        tiles.forEach((tile) => {
+            const pullX = parseFloat(tile.dataset.pullX);
+            const pullY = parseFloat(tile.dataset.pullY);
+            const baseRot = parseFloat(tile.dataset.rot);
             
-            // 2. Kill the WAAPI lock! (Releases control back to CSS)
-            pullAnims[i].cancel();
-
-            // 3. Apply the Swirl & Jiggle (CSS is now back in charge!)
             const ang = Math.random() * Math.PI * 2;
             const rad = 12 + Math.random() * 14;
-            tile.style.setProperty('--swirl-ox', `${Math.cos(ang) * rad}px`);
-            tile.style.setProperty('--swirl-oy', `${Math.sin(ang) * rad}px`);
-            tile.style.setProperty('--swirl-r-extra', `${(Math.random() * 18 - 9).toFixed(2)}deg`);
-            
-            tile.style.animation = `shuffleCenterJiggle ${JIGGLE_MS}ms cubic-bezier(0.42, 0.03, 0.58, 0.97) forwards`;
+            const swirlX = Math.cos(ang) * rad;
+            const swirlY = Math.sin(ang) * rad;
+            const swirlRot = baseRot + (Math.random() * 18 - 9);
+
+            tile.animate([
+                { transform: `translate3d(${pullX}px, ${pullY}px, 0) scale(1.1) rotate(${baseRot}deg)` },
+                { transform: `translate3d(${pullX + swirlX}px, ${pullY + swirlY}px, 0) scale(1.15) rotate(${swirlRot}deg)`, offset: 0.33 },
+                { transform: `translate3d(${pullX - swirlX * 0.5}px, ${pullY - swirlY * 0.5}px, 0) scale(1.1) rotate(${baseRot - (swirlRot - baseRot)}deg)`, offset: 0.66 },
+                { transform: `translate3d(${pullX}px, ${pullY}px, 0) scale(1.1) rotate(${baseRot}deg)` }
+            ], {
+                duration: JIGGLE_MS,
+                easing: 'cubic-bezier(0.42, 0.03, 0.58, 0.97)',
+                fill: 'forwards'
+            });
         });
         
         await new Promise((resolve) => setTimeout(resolve, JIGGLE_MS));
 
+        // --- THE FIREWALL ---
         applyState();
         renderBoard({ skipTileEntrance: true });
 
@@ -2431,4 +2430,13 @@ async function fetchWordDefinition(word, isFallback = false) {
     generateLetterPicker();
     renderBoard();
     updateUI();
+}
+
+function resetDraggedTiles() {
+    currentPath.forEach(pos => {
+        pos.element.classList.remove('selected');
+        pos.element.style.opacity = ''; // Reset opacity
+        pos.element.style.visibility = ''; // Reset visibility
+    });
+    currentPath = [];
 }
