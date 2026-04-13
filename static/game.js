@@ -1700,29 +1700,40 @@ async function fetchWordDefinition(word, isFallback = false) {
 
         await new Promise((resolve) => setTimeout(resolve, pullWallMs));
 
-        // --- PHASE 2: THE WAAPI JIGGLE ---
-        tiles.forEach((tile) => {
-            const pullX = parseFloat(tile.dataset.pullX);
-            const pullY = parseFloat(tile.dataset.pullY);
-            const baseRot = parseFloat(tile.dataset.rot);
+    // --- PHASE 2: THE DOUBLE WAAPI JIGGLE ---
+    // We run the jiggle twice to make it feel like a deep shuffle
+    for (let loop = 0; loop < 2; loop++) {
             
-            const ang = Math.random() * Math.PI * 2;
-            const rad = 12 + Math.random() * 14;
-            const swirlX = Math.cos(ang) * rad;
-            const swirlY = Math.sin(ang) * rad;
-            const swirlRot = baseRot + (Math.random() * 18 - 9);
-
-            tile.animate([
-                { transform: `translate3d(${pullX}px, ${pullY}px, 0) scale(1.1) rotate(${baseRot}deg)` },
-                { transform: `translate3d(${pullX + swirlX}px, ${pullY + swirlY}px, 0) scale(1.15) rotate(${swirlRot}deg)`, offset: 0.33 },
-                { transform: `translate3d(${pullX - swirlX * 0.5}px, ${pullY - swirlY * 0.5}px, 0) scale(1.1) rotate(${baseRot - (swirlRot - baseRot)}deg)`, offset: 0.66 },
-                { transform: `translate3d(${pullX}px, ${pullY}px, 0) scale(1.1) rotate(${baseRot}deg)` }
-            ], {
-                duration: JIGGLE_MS,
-                easing: 'cubic-bezier(0.42, 0.03, 0.58, 0.97)',
-                fill: 'forwards'
+            // MASTER TRICK: Randomize the stacking order so the top tile changes mid-shuffle!
+            tiles.forEach(tile => {
+                tile.style.zIndex = Math.floor(Math.random() * 100);
             });
-        });
+
+            tiles.forEach((tile) => {
+                const pullX = parseFloat(tile.dataset.pullX);
+                const pullY = parseFloat(tile.dataset.pullY);
+                const baseRot = parseFloat(tile.dataset.rot);
+                
+                const ang = Math.random() * Math.PI * 2;
+                const rad = 12 + Math.random() * 14;
+                const swirlX = Math.cos(ang) * rad;
+                const swirlY = Math.sin(ang) * rad;
+                const swirlRot = baseRot + (Math.random() * 18 - 9);
+
+                tile.animate([
+                    { transform: `translate3d(${pullX}px, ${pullY}px, 0) scale(1.1) rotate(${baseRot}deg)` },
+                    { transform: `translate3d(${pullX + swirlX}px, ${pullY + swirlY}px, 0) scale(1.15) rotate(${swirlRot}deg)`, offset: 0.33 },
+                    { transform: `translate3d(${pullX - swirlX * 0.5}px, ${pullY - swirlY * 0.5}px, 0) scale(1.1) rotate(${baseRot - (swirlRot - baseRot)}deg)`, offset: 0.66 },
+                    { transform: `translate3d(${pullX}px, ${pullY}px, 0) scale(1.1) rotate(${baseRot}deg)` }
+                ], {
+                    duration: JIGGLE_MS,
+                    easing: 'cubic-bezier(0.42, 0.03, 0.58, 0.97)',
+                    fill: 'forwards'
+                });
+            });
+            
+            await new Promise((resolve) => setTimeout(resolve, JIGGLE_MS));
+        }
         
         await new Promise((resolve) => setTimeout(resolve, JIGGLE_MS));
 
@@ -1750,7 +1761,7 @@ async function fetchWordDefinition(word, isFallback = false) {
             tile.style.transition = 'none';
             tile.style.animation = 'none';
             tile.style.transform = `translate3d(${dx}px, ${dy}px, 0) scale(1.1) rotate(var(--random-rot))`;
-            tile.style.boxShadow = '0 14px 32px rgba(0, 0, 0, 0.48), 0 6px 12px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.12), 0 0 24px rgba(255, 215, 0, 0.15)';
+            tile.style.boxShadow = DEFAULT_TILE_SHADOW;
             tile.style.opacity = '1';
         });
 
@@ -2366,6 +2377,9 @@ async function fetchWordDefinition(word, isFallback = false) {
             button.innerHTML = '<span class="icon">🔀</span> SWAP (<span class="cost">3💎</span>)';
             document.querySelectorAll('.grid-tile').forEach(tile => {
                 tile.classList.remove('swap-mode-pulse');
+                tile.style.opacity = '1'; // Ensure tile is visible
+                tile.style.visibility = 'visible'; // Ensure tile is visible
+                tile.style.transform = ''; // Reset any transformations
             });
         }
     });
@@ -2387,6 +2401,9 @@ async function fetchWordDefinition(word, isFallback = false) {
             // Stop all pulsing when a tile is selected
             document.querySelectorAll('.grid-tile').forEach(t => {
                 t.classList.remove('swap-mode-pulse');
+                t.style.opacity = '1'; // Ensure tile is visible
+                t.style.visibility = 'visible'; // Ensure tile is visible
+                t.style.transform = ''; // Reset any transformations
             });
             
             letterPickerOverlay.classList.remove('hidden');
@@ -2435,8 +2452,9 @@ async function fetchWordDefinition(word, isFallback = false) {
 function resetDraggedTiles() {
     currentPath.forEach(pos => {
         pos.element.classList.remove('selected');
-        pos.element.style.opacity = ''; // Reset opacity
-        pos.element.style.visibility = ''; // Reset visibility
+        pos.element.style.opacity = '1'; // Ensure tile is visible
+        pos.element.style.visibility = 'visible'; // Ensure tile is visible
+        pos.element.style.transform = ''; // Reset any transformations
     });
     currentPath = [];
 }

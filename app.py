@@ -1066,7 +1066,8 @@ def handle_start_turn(data):
     # Start appropriate timer based on settings
     if room['settings']['timer_type'] == 'voting':
         # Start grace period in background thread
-        thread = threading.Thread(target=start_grace_period, args=(room_code,))
+        mode = room['settings'].get('board_mode', 'shared_board')  # Default to 'shared_board' if not specified
+        thread = threading.Thread(target=start_grace_period_voting, args=(room_code, mode))
         thread.daemon = True
         thread.start()
         timer_threads[room_code] = {'thread': thread, 'stop': False}
