@@ -2267,6 +2267,8 @@ async function fetchWordDefinition(word, isFallback = false) {
             if (hintLoader) {
                 hintLoader.classList.remove('hidden');
             }
+
+            console.time('Hint Execution Time'); // Start timer
         }
 
         try {
@@ -2278,6 +2280,8 @@ async function fetchWordDefinition(word, isFallback = false) {
             const result = await response.json();
 
             if (ability === 'hint') {
+                console.timeEnd('Hint Execution Time'); // End timer
+
                 const hintLoader = document.getElementById('hint-loader-overlay');
                 if (hintLoader) {
                     hintLoader.classList.add('hidden');
@@ -2288,10 +2292,11 @@ async function fetchWordDefinition(word, isFallback = false) {
                 const hintScore = document.getElementById('hint-score');
 
                 if (result.success && result.hint) {
-                    hintWord.textContent = result.hint.word.toUpperCase();
+                    const executionTime = (performance.now() - performance.timing.navigationStart) / 1000;
+                    hintWord.textContent = `${result.hint.word.toUpperCase()} (took ${executionTime.toFixed(2)}s)`;
                     hintScore.textContent = `Score: ${result.hint.path ? calculateHintScore(result.hint.word, result.hint.path) : '?'} pts`;
                     hintDisplay.style.display = 'block';
-                    showMessage(`Hint found: ${result.hint.word.toUpperCase()}`, 'green');
+                    showMessage(`Hint found: ${result.hint.word.toUpperCase()} (took ${executionTime.toFixed(2)}s)`, 'green');
                 } else {
                     hintDisplay.style.display = 'none';
                     showMessage(result.reason || 'No hint found!', 'red');

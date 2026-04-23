@@ -483,6 +483,9 @@ def use_ability():
             return jsonify({"success": False, "reason": "Invalid swap data."})
 
     elif ability == "hint":
+        import time
+        start_time = time.time()
+
         board_letters = get_current_board_letters()
 
         # Trie-based prefix pruning setup
@@ -512,28 +515,34 @@ def use_ability():
 
         trie_root = build_trie(english_words)
 
+        best_word, best_path = None, None
+
         def dfs_find_word(r, c, visited, current_word):
+            nonlocal best_word, best_path
+
+            # Circuit breaker: Stop if execution time exceeds 1.5 seconds
+            if time.time() - start_time > 1.5:
+                return
+
             if len(current_word) >= 4 and current_word in english_words:
-                return current_word, visited
+                if best_word is None or len(current_word) > len(best_word):
+                    best_word, best_path = current_word, visited
 
             if not has_valid_prefix(trie_root, current_word):
-                return None, None
+                return
 
             directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
             for dr, dc in directions:
                 nr, nc = r + dr, c + dc
                 if 0 <= nr < GRID_SIZE and 0 <= nc < GRID_SIZE and (nr, nc) not in visited:
-                    next_word, next_path = dfs_find_word(nr, nc, visited | {(nr, nc)}, current_word + board_letters[nr][nc])
-                    if next_word:
-                        return next_word, next_path
-
-            return None, None
+                    dfs_find_word(nr, nc, visited | {(nr, nc)}, current_word + board_letters[nr][nc])
 
         for r in range(GRID_SIZE):
             for c in range(GRID_SIZE):
-                word, path = dfs_find_word(r, c, {(r, c)}, board_letters[r][c])
-                if word:
-                    return jsonify({"success": True, "new_state": game_state, "hint": {"word": word, "path": list(path)}})
+                dfs_find_word(r, c, {(r, c)}, board_letters[r][c])
+
+        if best_word:
+            return jsonify({"success": True, "new_state": game_state, "hint": {"word": best_word, "path": list(best_path)}})
 
         game_state["gems"] += cost
         return jsonify({"success": False, "reason": "No hint found!"})
