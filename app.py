@@ -537,15 +537,20 @@ def use_ability():
                 if 0 <= nr < GRID_SIZE and 0 <= nc < GRID_SIZE and (nr, nc) not in visited:
                     dfs_find_word(nr, nc, visited | {(nr, nc)}, current_word + board_letters[nr][nc])
 
-        for r in range(GRID_SIZE):
-            for c in range(GRID_SIZE):
-                dfs_find_word(r, c, {(r, c)}, board_letters[r][c])
+        try:
+            for r in range(GRID_SIZE):
+                for c in range(GRID_SIZE):
+                    dfs_find_word(r, c, {(r, c)}, board_letters[r][c])
 
-        if best_word:
-            return jsonify({"success": True, "new_state": game_state, "hint": {"word": best_word, "path": list(best_path)}})
+            if best_word:
+                return jsonify({"success": True, "new_state": game_state, "hint": {"word": best_word, "path": list(best_path)}})
 
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e), "word": None})
+
+        # Timeout or no valid word found
         game_state["gems"] += cost
-        return jsonify({"success": False, "reason": "No hint found!"})
+        return jsonify({"success": False, "error": "timeout or no hint found", "word": None})
 
     return jsonify({"success": True, "new_state": game_state})
 

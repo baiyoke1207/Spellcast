@@ -2277,6 +2277,13 @@ async function fetchWordDefinition(word, isFallback = false) {
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({ability, ...extraData})
             });
+
+            if (!response.ok) {
+                const rawText = await response.text();
+                console.error('Hint request failed:', rawText);
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
             const result = await response.json();
 
             if (ability === 'hint') {
@@ -2305,6 +2312,13 @@ async function fetchWordDefinition(word, isFallback = false) {
         } catch (error) {
             console.error('Error using ability:', error);
             showMessage('An error occurred. Please try again.', 'red');
+
+            if (ability === 'hint') {
+                const hintLoader = document.getElementById('hint-loader-overlay');
+                if (hintLoader) {
+                    hintLoader.classList.add('hidden');
+                }
+            }
         }
     }
     
