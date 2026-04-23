@@ -484,21 +484,36 @@ def use_ability():
 
     elif ability == "hint":
         board_letters = get_current_board_letters()
-        best_word, best_path, best_score = "", [], -1
-        
-        for word in english_words:
-            if len(word) < 3 or word in game_state["found_words"]: continue
-            paths = find_all_paths(board_letters, word)
-            if paths:
-                score = calculate_score_for_path(paths[0], word)
-                if score > best_score:
-                    best_word, best_path, best_score = word, paths[0], score
-        
-        if best_word:
-            return jsonify({"success": True, "new_state": game_state, "hint": {"word": best_word, "path": best_path}})
-        else:
-            game_state["gems"] += cost
-            return jsonify({"success": False, "reason": "No hint found!"})
+
+        # Early exit and prefix pruning setup
+        def has_valid_prefix(prefix):
+            return any(word.startswith(prefix) for word in english_words)
+
+        def dfs_find_word(r, c, visited, current_word):
+            if len(current_word) >= 4 and current_word in english_words:
+                return current_word, visited
+
+            if not has_valid_prefix(current_word):
+                return None, None
+
+            directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+            for dr, dc in directions:
+                nr, nc = r + dr, c + dc
+                if 0 <= nr < GRID_SIZE and 0 <= nc < GRID_SIZE and (nr, nc) not in visited:
+                    next_word, next_path = dfs_find_word(nr, nc, visited | {(nr, nc)}, current_word + board_letters[nr][nc])
+                    if next_word:
+                        return next_word, next_path
+
+            return None, None
+
+        for r in range(GRID_SIZE):
+            for c in range(GRID_SIZE):
+                word, path = dfs_find_word(r, c, {(r, c)}, board_letters[r][c])
+                if word:
+                    return jsonify({"success": True, "new_state": game_state, "hint": {"word": word, "path": list(path)}})
+
+        game_state["gems"] += cost
+        return jsonify({"success": False, "reason": "No hint found!"})
 
     return jsonify({"success": True, "new_state": game_state})
 
