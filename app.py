@@ -526,7 +526,7 @@ def use_ability():
 
             if len(current_word) >= 4 and current_word in english_words:
                 if best_word is None or len(current_word) > len(best_word):
-                    best_word, best_path = current_word, visited
+                    best_word, best_path = current_word, list(visited)
 
             if not has_valid_prefix(trie_root, current_word):
                 return
@@ -535,7 +535,9 @@ def use_ability():
             for dr, dc in directions:
                 nr, nc = r + dr, c + dc
                 if 0 <= nr < GRID_SIZE and 0 <= nc < GRID_SIZE and (nr, nc) not in visited:
-                    dfs_find_word(nr, nc, visited | {(nr, nc)}, current_word + board_letters[nr][nc])
+                    visited.add((nr, nc))
+                    dfs_find_word(nr, nc, visited, current_word + board_letters[nr][nc])
+                    visited.remove((nr, nc))  # Backtrack
 
         try:
             for r in range(GRID_SIZE):
@@ -543,7 +545,7 @@ def use_ability():
                     dfs_find_word(r, c, {(r, c)}, board_letters[r][c])
 
             if best_word:
-                return jsonify({"success": True, "new_state": game_state, "hint": {"word": best_word, "path": list(best_path)}})
+                return jsonify({"success": True, "new_state": game_state, "hint": {"word": best_word, "path": best_path}})
 
         except Exception as e:
             return jsonify({"success": False, "error": str(e), "word": None})
