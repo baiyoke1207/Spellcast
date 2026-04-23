@@ -485,15 +485,38 @@ def use_ability():
     elif ability == "hint":
         board_letters = get_current_board_letters()
 
-        # Early exit and prefix pruning setup
-        def has_valid_prefix(prefix):
-            return any(word.startswith(prefix) for word in english_words)
+        # Trie-based prefix pruning setup
+        class TrieNode:
+            def __init__(self):
+                self.children = {}
+                self.is_end_of_word = False
+
+        def build_trie(words):
+            root = TrieNode()
+            for word in words:
+                node = root
+                for char in word:
+                    if char not in node.children:
+                        node.children[char] = TrieNode()
+                    node = node.children[char]
+                node.is_end_of_word = True
+            return root
+
+        def has_valid_prefix(trie, prefix):
+            node = trie
+            for char in prefix:
+                if char not in node.children:
+                    return False
+                node = node.children[char]
+            return True
+
+        trie_root = build_trie(english_words)
 
         def dfs_find_word(r, c, visited, current_word):
             if len(current_word) >= 4 and current_word in english_words:
                 return current_word, visited
 
-            if not has_valid_prefix(current_word):
+            if not has_valid_prefix(trie_root, current_word):
                 return None, None
 
             directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]

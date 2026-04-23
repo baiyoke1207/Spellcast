@@ -2262,58 +2262,44 @@ async function fetchWordDefinition(word, isFallback = false) {
     }
 
     async function useAbility(ability, extraData = {}) {
-        // FIX #1: HINT - Show loading indicator and handle hint display
         if (ability === 'hint') {
-            // Show loading overlay
             const hintLoader = document.getElementById('hint-loader-overlay');
             if (hintLoader) {
                 hintLoader.classList.remove('hidden');
             }
         }
-        
-        const response = await fetch('/use-ability',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ability,...extraData})});
-        const result = await response.json();
-        
-        // FIX #1: HINT - Hide loading indicator
-        if (ability === 'hint') {
-            const hintLoader = document.getElementById('hint-loader-overlay');
-            if (hintLoader) {
-                hintLoader.classList.add('hidden');
-            }
-        }
-        
-        if(result.success){
-            if (ability === 'shuffle') {
-                showMessage('Shuffling board!', 'blue');
-                playSound('swap');
-                await animateShuffleCards(result.new_state);
-                updateUI();
-            } else if (ability === 'hint') {
-                // FIX #1: HINT - Display hint persistently
-                currentGems = result.new_state.gems;
-                setStateAndRender(result.new_state);
-                
-                if (result.hint) {
-                    const hintDisplay = document.getElementById('hint-display');
-                    const hintWord = document.getElementById('hint-word');
-                    const hintScore = document.getElementById('hint-score');
-                    
-                    if (hintDisplay && hintWord && hintScore) {
-                        hintWord.textContent = result.hint.word.toUpperCase();
-                        hintScore.textContent = `Score: ${result.hint.path ? calculateHintScore(result.hint.word, result.hint.path) : '?'} pts`;
-                        hintDisplay.style.display = 'block';
-                        showMessage(`Hint found: ${result.hint.word.toUpperCase()}`, 'green');
-                    }
-                } else {
-                    showMessage('Hint used!', 'green');
+
+        try {
+            const response = await fetch('/use-ability', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ability, ...extraData})
+            });
+            const result = await response.json();
+
+            if (ability === 'hint') {
+                const hintLoader = document.getElementById('hint-loader-overlay');
+                if (hintLoader) {
+                    hintLoader.classList.add('hidden');
                 }
-            } else {
-                if(ability !== 'swap') showMessage(`${ability.charAt(0).toUpperCase()+ability.slice(1)} used!`,'green');
-                currentGems = result.new_state.gems;
-                setStateAndRender(result.new_state);
+
+                const hintDisplay = document.getElementById('hint-display');
+                const hintWord = document.getElementById('hint-word');
+                const hintScore = document.getElementById('hint-score');
+
+                if (result.success && result.hint) {
+                    hintWord.textContent = result.hint.word.toUpperCase();
+                    hintScore.textContent = `Score: ${result.hint.path ? calculateHintScore(result.hint.word, result.hint.path) : '?'} pts`;
+                    hintDisplay.style.display = 'block';
+                    showMessage(`Hint found: ${result.hint.word.toUpperCase()}`, 'green');
+                } else {
+                    hintDisplay.style.display = 'none';
+                    showMessage(result.reason || 'No hint found!', 'red');
+                }
             }
-        } else {
-            showMessage(result.reason,'red');
+        } catch (error) {
+            console.error('Error using ability:', error);
+            showMessage('An error occurred. Please try again.', 'red');
         }
     }
     
