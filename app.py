@@ -10,8 +10,11 @@ import time
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'spellcast-multiplayer-secret-key-2024'
 
-# Initialize SocketIO with eventlet for production compatibility
-socketio = SocketIO(app, cors_allowed_origins="*")
+# BUG FIX: Switched from eventlet to threading async_mode.
+# eventlet is incompatible with Python 3.12+ and does not support 3.14 at all.
+# threading mode works on every Python version with no extra dependencies,
+# and is fully compatible with Flask-SocketIO 5.x + gunicorn gthread workers.
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
 
 # ===== MULTIPLAYER STATE (Phase 1 + Timer System) =====
 game_rooms = {}  # Room code -> room data
@@ -1813,4 +1816,6 @@ if __name__ == "__main__":
     
     # Use PORT from environment (for hosting platforms) or default to 5000
     port = int(os.environ.get('PORT', 5000))
-    socketio.run(app, debug=False, host='0.0.0.0', port=port)
+    # BUG FIX: use_reloader=False required in threading mode to prevent
+    # the trie being built twice on startup (Flask reloader spawns a child process).
+    socketio.run(app, debug=False, host='0.0.0.0', port=port, use_reloader=False)
