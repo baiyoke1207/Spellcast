@@ -2263,60 +2263,78 @@ async function fetchWordDefinition(word, isFallback = false) {
 
     async function useAbility(ability, extraData = {}) {
         if (ability === 'hint') {
-            const hintLoader = document.getElementById('hint-loader-overlay');
+            const hintLoader = document.getElementById("hint-loader-overlay");
             if (hintLoader) {
-                hintLoader.classList.remove('hidden');
+                hintLoader.classList.remove("hidden");
             }
-
-            console.time('Hint Execution Time'); // Start timer
         }
 
+        // FIX: Start timer exactly when the button is clicked
+        const startTime = performance.now(); 
+
         try {
-            const response = await fetch('/use-ability', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
+            const response = await fetch("/use-ability", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
                 body: JSON.stringify({ability, ...extraData})
             });
 
             if (!response.ok) {
                 const rawText = await response.text();
-                console.error('Hint request failed:', rawText);
+                console.error("Ability request failed:", rawText);
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
 
             const result = await response.json();
 
-            if (ability === 'hint') {
-                console.timeEnd('Hint Execution Time'); // End timer
-
-                const hintLoader = document.getElementById('hint-loader-overlay');
-                if (hintLoader) {
-                    hintLoader.classList.add('hidden');
+            if (result.success) {
+                // FIX: Always update the global game state if the backend sends it
+                if (result.new_state) {
+                    gameState = result.new_state;
+                    updateUI(); // Updates the gem count visually
                 }
 
-                const hintDisplay = document.getElementById('hint-display');
-                const hintWord = document.getElementById('hint-word');
-                const hintScore = document.getElementById('hint-score');
+                if (ability === "hint" && result.hint) {
+                    const hintLoader = document.getElementById("hint-loader-overlay");
+                    if (hintLoader) hintLoader.classList.add("hidden");
 
-                if (result.success && result.hint) {
-                    const executionTime = (performance.now() - performance.timing.navigationStart) / 1000;
-                    hintWord.textContent = `${result.hint.word.toUpperCase()} (took ${executionTime.toFixed(2)}s)`;
-                    hintScore.textContent = `Score: ${result.hint.path ? calculateHintScore(result.hint.word, result.hint.path) : '?'} pts`;
-                    hintDisplay.style.display = 'block';
-                    showMessage(`Hint found: ${result.hint.word.toUpperCase()} (took ${executionTime.toFixed(2)}s)`, 'green');
-                } else {
-                    hintDisplay.style.display = 'none';
-                    showMessage(result.reason || 'No hint found!', 'red');
+                    const hintDisplay = document.getElementById("hint-display");
+                    const hintWord = document.getElementById("hint-word");
+                    const hintScore = document.getElementById("hint-score");
+
+                    // FIX: Calculate execution time of just this request
+                    const executionTime = ((performance.now() - startTime) / 1000).toFixed(1);
+                    
+                    hintWord.textContent = `${result.hint.word.toUpperCase()} (took ${executionTime}s)`;
+                    hintScore.textContent = `Score: ${result.hint.path ? calculateHintScore(result.hint.word, result.hint.path) : "?"} pts`;
+                    hintDisplay.style.display = "block";
+                    showMessage(`Hint found: ${result.hint.word.toUpperCase()} (took ${executionTime}s)`, "green");
+                    
+                } else if (ability === "shuffle" || ability === "swap") {
+                    // FIX: Actually render the new board on the screen so the player sees the shuffle/swap!
+                    renderBoard({ skipTileEntrance: false });
+                    if (typeof playSound === "function") playSound("swap");
+                    showMessage(`${ability.toUpperCase()} successful!`, "green");
+                }
+                
+            } else {
+                // Backend returned success: False (e.g. not enough gems, or no hint)
+                showMessage(result.reason || "Ability failed!", "red");
+                if (ability === "hint") {
+                    const hintDisplay = document.getElementById("hint-display");
+                    if (hintDisplay) hintDisplay.style.display = "none";
+                    const hintLoader = document.getElementById("hint-loader-overlay");
+                    if (hintLoader) hintLoader.classList.add("hidden");
                 }
             }
         } catch (error) {
-            console.error('Error using ability:', error);
-            showMessage('An error occurred. Please try again.', 'red');
+            console.error("Error using ability:", error);
+            showMessage("An error occurred. Please try again.", "red");
 
-            if (ability === 'hint') {
-                const hintLoader = document.getElementById('hint-loader-overlay');
+            if (ability === "hint") {
+                const hintLoader = document.getElementById("hint-loader-overlay");
                 if (hintLoader) {
-                    hintLoader.classList.add('hidden');
+                    hintLoader.classList.add("hidden");
                 }
             }
         }

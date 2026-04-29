@@ -482,7 +482,7 @@ def submit_word():
     advance_to_next_round()
     return jsonify({"valid": True, "new_state": game_state, "score_added": final_score})
 
-@app.route("/use-ability", methods=['POST'])
+@app.route("/use-ability", methods=["POST"])
 def use_ability():
     data = request.get_json()
     ability = data.get("ability")
@@ -508,46 +508,21 @@ def use_ability():
     elif ability == "swap":
         index = data.get("index")
         new_letter = data.get("new_letter", "").upper()
-        if index is not None and new_letter and 'A' <= new_letter <= 'Z':
+        if index is not None and new_letter and "A" <= new_letter <= "Z":
             game_state["board_tiles"][index]["letter"] = new_letter
         else:
             game_state["gems"] += cost
             return jsonify({"success": False, "reason": "Invalid swap data."})
 
     elif ability == "hint":
-        # -------------------------------------------------------------------
-        # HINT ABILITY - Complete rewrite to fix 500 errors and 502 timeouts
-        #
-        # Root causes fixed:
-        #   1. Trie was rebuilt on every request (~0.3 s). Now uses module-
-        #      level HINT_TRIE built once at startup.
-        #   2. Circuit breaker previously only stopped the current DFS frame;
-        #      parent frames kept iterating. Fixed by checking a shared
-        #      timeout_flag list (mutable so inner scope can write to it) and
-        #      propagating the signal via the return value of the recursive
-        #      helper - as soon as timeout fires we unwind the whole stack.
-        #   3. Only 4 cardinal directions were searched. Boggle uses all 8
-        #      neighbours (including diagonals). Now uses all 8 deltas.
-        #   4. Prefix pruning now happens BEFORE recursing into children,
-        #      not after - eliminating dead-end subtrees immediately.
-        #   5. Outer grid loop now checks timeout flag between starting-tile
-        #      candidates so it can bail out promptly.
-        #   6. Every exit path returns jsonify() - no bare dict returns.
-        # -------------------------------------------------------------------
         try:
             start_time = time.time()
             TIMEOUT_SECS = 1.5
             board_letters = get_current_board_letters()
 
-            # timeout_flag[0] is True once the wall-clock limit is exceeded.
-            # Using a list so the nested closure can mutate it without
-            # triggering Python's "local variable referenced before assignment".
             timeout_flag = [False]
-
-            # best[0] = word string, best[1] = path as list of [r, c] pairs
             best = [None, None]
 
-            # All 8 Boggle neighbours (cardinal + diagonal)
             NEIGHBOURS = (
                 (-1, -1), (-1, 0), (-1, 1),
                 ( 0, -1),          ( 0, 1),
@@ -555,59 +530,40 @@ def use_ability():
             )
 
             def dfs(r, c, visited_coords, trie_node, path, word):
-                """
-                Recursive DFS with:
-                  - visited set passed by reference (add/remove = backtrack)
-                  - trie_node keeps our position in HINT_TRIE for O(1) prefix
-                    validity without re-walking from root each step
-                  - returns True immediately when timeout is detected so the
-                    whole call stack unwinds without further work
-                """
-                # --- CIRCUIT BREAKER: check wall clock ---
                 if time.time() - start_time > TIMEOUT_SECS:
                     timeout_flag[0] = True
-                    return True   # signal "stop everything" to caller
+                    return True 
 
-                # --- RECORD VALID WORD ---
-                # Prefer longer words (higher scoring); length tie keeps first found.
                 if trie_node.is_end and len(word) >= 4:
                     if best[0] is None or len(word) > len(best[0]):
                         best[0] = word
-                        # Store as [[r,c], ...] to match frontend path format
                         best[1] = [list(coord) for coord in path]
 
-                # --- EXPLORE NEIGHBOURS ---
                 for dr, dc in NEIGHBOURS:
                     nr, nc = r + dr, c + dc
-                    # Bounds check + already-visited check
                     if not (0 <= nr < GRID_SIZE and 0 <= nc < GRID_SIZE):
                         continue
                     if (nr, nc) in visited_coords:
                         continue
 
-                    next_letter = board_letters[nr][nc]  # already uppercase
-
-                    # --- PREFIX PRUNING: only descend if letter exists in trie ---
+                    next_letter = board_letters[nr][nc] 
                     child_node = trie_node.children.get(next_letter)
                     if child_node is None:
                         continue
 
-                    # Recurse
                     visited_coords.add((nr, nc))
                     path.append((nr, nc))
 
                     timed_out = dfs(nr, nc, visited_coords, child_node, path, word + next_letter)
 
-                    # Backtrack
                     path.pop()
                     visited_coords.discard((nr, nc))
 
                     if timed_out:
-                        return True   # propagate stop signal up the stack
+                        return True
 
                 return False
 
-            # Iterate over every tile as a potential starting letter
             for start_r in range(GRID_SIZE):
                 for start_c in range(GRID_SIZE):
                     if timeout_flag[0]:
@@ -616,18 +572,18 @@ def use_ability():
                     start_letter = board_letters[start_r][start_c]
                     start_node = HINT_TRIE.children.get(start_letter)
                     if start_node is None:
-                        continue   # no word in dictionary starts with this letter
+                        continue
 
                     dfs(
                         start_r, start_c,
-                        {(start_r, start_c)},   # visited set
-                        start_node,              # trie cursor already advanced past start_letter
-                        [(start_r, start_c)],    # current path
-                        start_letter             # current word fragment
+                        {(start_r, start_c)}, 
+                        start_node, 
+                        [(start_r, start_c)], 
+                        start_letter 
                     )
                 else:
                     continue
-                break   # inner loop broke (timeout), break outer too
+                break
 
             if best[0]:
                 return jsonify({
@@ -637,10 +593,9 @@ def use_ability():
                         "word": best[0].lower(),
                         "path": best[1]
                     },
-                    "timed_out": timeout_flag[0]   # informational; frontend ignores
+                    "timed_out": timeout_flag[0] 
                 })
             else:
-                # No valid word found (empty board or full timeout with nothing)
                 game_state["gems"] += cost
                 return jsonify({
                     "success": False,
@@ -649,7 +604,6 @@ def use_ability():
                 })
 
         except Exception as exc:
-            # Safety net: refund gems so the player isn't penalised for server errors
             game_state["gems"] += cost
             return jsonify({
                 "success": False,
@@ -657,6 +611,7 @@ def use_ability():
                 "error": str(exc)
             })
 
+    # Catch-all return for shuffle and swap to trigger frontend updates
     return jsonify({"success": True, "new_state": game_state})
 
 # ===== PHASE 2 CRITICAL VALIDATION FUNCTIONS =====
