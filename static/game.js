@@ -107,6 +107,10 @@ function initGame(initialState, letterScores) {
 
     function renderBoard(options = {}) {
         const skipTileEntrance = options.skipTileEntrance === true;
+        // TASK 2: Read the new syncAnimation flag. When true, all tile entrance
+        // animations fire simultaneously (delay = 0) instead of staggering
+        // index-by-index, giving a snappier shuffle/swap feel.
+        const syncAnimation = options.syncAnimation === true;
         boardElement.innerHTML = '<svg id="path-svg"></svg>';
         if (hasShimmer) {
             boardElement.classList.add('persistent-shimmer');
@@ -126,7 +130,9 @@ function initGame(initialState, letterScores) {
                 tileElement.style.animation = 'none';
                 tileElement.style.opacity = '0';
             } else {
-                const animationDelay = (r * GRID_SIZE + c) * 0.05;
+                // TASK 2: Force delay to 0 when syncAnimation is true so every
+                // tile animates in at the exact same moment.
+                const animationDelay = syncAnimation ? 0 : (r * GRID_SIZE + c) * 0.05;
                 tileElement.style.animationDelay = `${animationDelay}s`;
             }
             
@@ -2291,7 +2297,13 @@ async function fetchWordDefinition(word, isFallback = false) {
                 // FIX: Always update the global game state if the backend sends it
                 if (result.new_state) {
                     gameState = result.new_state;
-                    updateUI(); // Updates the gem count visually
+                    // TASK 1: Sync the local gem tracking variable to the server's
+                    // authoritative value and push it to the DOM immediately.
+                    // Without this, updateUI() reads the stale pre-ability currentGems
+                    // and the counter stays wrong until the next round refreshes it.
+                    currentGems = result.new_state.gems;
+                    gemDisplay.textContent = currentGems;
+                    updateUI(); // Updates the rest of the UI with the new state
                 }
 
                 if (ability === "hint" && result.hint) {
@@ -2312,7 +2324,9 @@ async function fetchWordDefinition(word, isFallback = false) {
                     
                 } else if (ability === "shuffle" || ability === "swap") {
                     // FIX: Actually render the new board on the screen so the player sees the shuffle/swap!
-                    renderBoard({ skipTileEntrance: false });
+                    // TASK 2: Pass syncAnimation:true so all 25 tiles animate in simultaneously
+                    // instead of staggering one by one — snappier and more satisfying.
+                    renderBoard({ skipTileEntrance: false, syncAnimation: true });
                     if (typeof playSound === "function") playSound("swap");
                     showMessage(`${ability.toUpperCase()} successful!`, "green");
                 }
