@@ -2480,7 +2480,7 @@ async function fetchWordDefinition(word, isFallback = false) {
         letterPickerOverlay.classList.add('hidden');
         interactionMode = 'play';
         showMessage('');
-        if (swapButton) swapButton.innerHTML = '<span class="icon">🔀</span> SWAP (<span class="cost">3💎</span>)';
+        if (swapButton) swapButton.innerHTML = '🔀 SWAP 3💎';
         document.querySelectorAll('.grid-tile').forEach(tile => {
             tile.classList.remove('swap-mode-pulse');
             tile.classList.remove('swapping');
