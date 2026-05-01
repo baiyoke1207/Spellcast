@@ -2411,12 +2411,19 @@ async function fetchWordDefinition(word, isFallback = false) {
         } else {
             // Exiting swap mode: Stop all pulsing
             showMessage('', 'blue');
-            button.innerHTML = '<span class="icon">🔀</span> SWAP (<span class="cost">3💎</span>)';
+            
+            // FIX #3: Clean, centered text block without the spread-out spans
+            button.innerHTML = '🔀 SWAP 3💎'; 
+            
             document.querySelectorAll('.grid-tile').forEach(tile => {
                 tile.classList.remove('swap-mode-pulse');
-                tile.style.opacity = '1'; // Ensure tile is visible
-                tile.style.visibility = 'visible'; // Ensure tile is visible
-                tile.style.transform = ''; // Reset any transformations
+                
+                // FIX #1: Prevent the entrance animation from replaying!
+                tile.style.animation = 'none'; 
+                
+                tile.style.opacity = '1'; 
+                tile.style.visibility = 'visible'; 
+                tile.style.transform = ''; 
             });
         }
     });

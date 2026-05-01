@@ -525,6 +525,11 @@ body::before {
     margin: 6px 0;
 }
 
+    /* Lock ability button widths so they don't shrink on Cancel */
+.ability-button {
+    min-width: 160px; /* Adjust this number if 'Cancel Swap' still gets cut off or shrinks */
+}
+
 /* Ability button icon styling */
 .ability-button .icon {
     font-size: 1.2em;
