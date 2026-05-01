@@ -243,7 +243,7 @@ body::before {
     font-size: 1.8em; 
     font-weight: bold; 
     color: #1f2937;
-    background: linear-gradient(145deg, #ffffff, #e8e8e8);
+    background: linear-gradient(145deg, #F8F6F0, #EFEADD);
     border-radius: 8px; 
     cursor: pointer;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
@@ -527,7 +527,7 @@ body::before {
 
     /* Lock ability button widths so they don't shrink on Cancel */
 .ability-button {
-    min-width: 180px; /* Adjust this number if 'Cancel Swap' still gets cut off or shrinks */
+    min-width: 220px; /* Adjust this number if 'Cancel Swap' still gets cut off or shrinks */
 }
 
 /* Ability button icon styling */
