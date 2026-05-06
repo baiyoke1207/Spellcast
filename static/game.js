@@ -2213,57 +2213,79 @@ async function fetchWordDefinition(word, isFallback = false) {
         clearSelection();
         wordInput.disabled = true;
 
-        const response = await fetch('/submit-word', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({word: word, path: submittedPath})
-        });
-        const result = await response.json();
-
-        if (result.valid) {
-            // FIX #2 & BUG FIX #5: Show proper feedback message below board
-            showMessage(`${word.toUpperCase()} played for +${result.score_added} points!`, 'green');
-            
-            // BUG FIX #2: Store word metadata IMMEDIATELY with correct points value
-            const wordKey = word.toUpperCase();
-            wordMetadata[wordKey] = {
-                points: result.score_added,
-                definition: null, // Will be fetched on demand
-                example: null,
-                phonetic: null,
-                partOfSpeech: null
-            };
-            
-            let gemsCollected = 0;
-            submittedPath.forEach(([r, c]) => {
-                const tile = document.querySelector(`[data-r='${r}'][data-c='${c}']`);
-                if (tile && tile.querySelector('.gem')) gemsCollected++;
+        try {
+            const response = await fetch('/submit-word', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({word: word, path: submittedPath})
             });
             
-            submittedPath.forEach((coord, i) => {
-                const tile = document.querySelector(`[data-r='${coord[0]}'][data-c='${coord[1]}']`);
-                if (tile) {
-                    setTimeout(() => {
-                        tile.classList.remove('grid-tile--entrance-suppressed');
-                        tile.style.animation = 'tileExplode 0.5s ease-out forwards';
-                    }, i * 50);
-                }
-            });
+            // Catch 500 errors from a wiped server before trying to read JSON
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const result = await response.json();
 
-            await new Promise(resolve => setTimeout(resolve, 600));
+            if (result.valid) {
+                // FIX #2 & BUG FIX #5: Show proper feedback message below board
+                showMessage(`${word.toUpperCase()} played for +${result.score_added} points!`, 'green');
+                
+                // BUG FIX #2: Store word metadata IMMEDIATELY with correct points value
+                const wordKey = word.toUpperCase();
+                wordMetadata[wordKey] = {
+                    points: result.score_added,
+                    definition: null, // Will be fetched on demand
+                    example: null,
+                    phonetic: null,
+                    partOfSpeech: null
+                };
+                
+                let gemsCollected = 0;
+                submittedPath.forEach(([r, c]) => {
+                    const tile = document.querySelector(`[data-r='${r}'][data-c='${c}']`);
+                    if (tile && tile.querySelector('.gem')) gemsCollected++;
+                });
+                
+                submittedPath.forEach((coord, i) => {
+                    const tile = document.querySelector(`[data-r='${coord[0]}'][data-c='${coord[1]}']`);
+                    if (tile) {
+                        setTimeout(() => {
+                            tile.classList.remove('grid-tile--entrance-suppressed');
+                            tile.style.animation = 'tileExplode 0.5s ease-out forwards';
+                        }, i * 50);
+                    }
+                });
+
+                await new Promise(resolve => setTimeout(resolve, 600));
+                
+                const wordPromise = displayPlayedWordCenter(word, result.score_added);
+                const gemPromise = animateGemFlight(submittedPath, gemsCollected);
+                const scorePromise = animateScoreCount(result.score_added);
+                
+                await Promise.all([wordPromise, gemPromise, scorePromise]);
+                
+                await setStateAndRender(result.new_state);
+                wordInput.disabled = false;
+            } else {
+                // BUG FIX #5: Ensure proper error message display
+                showMessage(result.reason || 'Invalid word!', 'red');
+                wordInput.disabled = gameState.game_over;
+            }
+        } catch (error) {
+            console.error("Error submitting word:", error);
             
-            const wordPromise = displayPlayedWordCenter(word, result.score_added);
-            const gemPromise = animateGemFlight(submittedPath, gemsCollected);
-            const scorePromise = animateScoreCount(result.score_added);
-            
-            await Promise.all([wordPromise, gemPromise, scorePromise]);
-            
-            await setStateAndRender(result.new_state);
-            wordInput.disabled = false;
-        } else {
-            // BUG FIX #5: Ensure proper error message display
-            showMessage(result.reason || 'Invalid word!', 'red');
-            wordInput.disabled = gameState.game_over;
+            // Detect if Render went to sleep and wiped the memory
+            if (error.message.includes("HTTP error") || error.message.includes("Failed to fetch") || error.message.includes("NetworkError")) {
+                showMessage("Connection lost! Refreshing game...", "red");
+                setTimeout(() => {
+                    window.location.reload(); // Force a page refresh to reset the connection
+                }, 2000);
+            } else {
+                showMessage("An error occurred submitting the word.", "red");
+                // Safety net: re-enable input so they aren't permanently stuck
+                wordInput.disabled = false; 
+            }
         }
     }
 
@@ -2343,8 +2365,18 @@ async function fetchWordDefinition(word, isFallback = false) {
             }
         } catch (error) {
             console.error("Error using ability:", error);
-            showMessage("An error occurred. Please try again.", "red");
+            
+            // NEW: Detect if Render went to sleep and wiped the memory
+            if (error.message.includes("HTTP error") || error.message.includes("Failed to fetch") || error.message.includes("NetworkError")) {
+                showMessage("Connection lost! Refreshing game...", "red");
+                setTimeout(() => {
+                    window.location.reload(); // Force a page refresh to reset the connection
+                }, 2000);
+            } else {
+                showMessage("An error occurred. Please try again.", "red");
+            }
 
+            // KEEP: Ensure the hint loading screen doesn't get stuck open
             if (ability === "hint") {
                 const hintLoader = document.getElementById("hint-loader-overlay");
                 if (hintLoader) {
