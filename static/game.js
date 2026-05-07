@@ -2148,6 +2148,7 @@ async function fetchWordDefinition(word, isFallback = false) {
             if (!lastTile || (Math.abs(r - lastTile.r) <= 1 && Math.abs(c - lastTile.c) <= 1)) {
                 currentPath.push({ r, c, element: tileElement });
                 tileElement.classList.add('selected');
+                if (navigator.vibrate) navigator.vibrate(15);
                 if (currentPath.length > 1) {
                     playSound('drag');
                 }
@@ -2228,6 +2229,10 @@ async function fetchWordDefinition(word, isFallback = false) {
             const result = await response.json();
 
             if (result.valid) {
+                // Re-enable hint usage after a successful word play
+                const hintBtn = document.querySelector('.ability-button[data-ability="hint"]');
+                if (hintBtn) hintBtn.disabled = false;
+
                 // FIX #2 & BUG FIX #5: Show proper feedback message below board
                 showMessage(`${word.toUpperCase()} played for +${result.score_added} points!`, 'green');
                 
@@ -2328,7 +2333,11 @@ async function fetchWordDefinition(word, isFallback = false) {
                     updateUI(); // Updates the rest of the UI with the new state
                 }
 
+                const hintBtn = document.querySelector('.ability-button[data-ability="hint"]');
+                const shuffleBtn = document.querySelector('.ability-button[data-ability="shuffle"]');
+
                 if (ability === "hint" && result.hint) {
+                    if (hintBtn) hintBtn.disabled = true;
                     const hintLoader = document.getElementById("hint-loader-overlay");
                     if (hintLoader) hintLoader.classList.add("hidden");
 
@@ -2345,6 +2354,13 @@ async function fetchWordDefinition(word, isFallback = false) {
                     showMessage(`Hint found: ${result.hint.word.toUpperCase()} (took ${executionTime}s)`, "green");
                     
                 } else if (ability === "shuffle" || ability === "swap") {
+                    if (ability === "shuffle" && shuffleBtn) {
+                        shuffleBtn.disabled = true;
+                        setTimeout(() => {
+                            if (shuffleBtn) shuffleBtn.disabled = false;
+                        }, 1000);
+                    }
+                    if (hintBtn) hintBtn.disabled = false;
                     // FIX: Actually render the new board on the screen so the player sees the shuffle/swap!
                     // TASK 2: Pass syncAnimation:true so all 25 tiles animate in simultaneously
                     // instead of staggering one by one — snappier and more satisfying.
