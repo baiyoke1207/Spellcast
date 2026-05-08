@@ -186,10 +186,7 @@ body::before {
     position: relative;
     display: grid;
     grid-template-columns: repeat(5, 1fr);
-    gap: 8px;
-    width: 100%;
-    max-width: 400px;
-    margin: 0 auto;
+    gap: 20px; /* Changed back to 20px */
     padding: 10px;
     background-color: rgba(17, 24, 39, 0.8);
     border: 2px solid #374151;
