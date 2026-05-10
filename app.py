@@ -1,11 +1,14 @@
 # app.py - MULTIPLAYER WITH ADVANCED TIMER SYSTEM
 # CRITICAL: Single-player mode fully preserved and working
+
 from flask import Flask, render_template, jsonify, request
 from flask_socketio import SocketIO, emit, join_room, leave_room
 import random
 import string
 import threading
 import time
+
+single_player_lock = threading.Lock()
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'spellcast-multiplayer-secret-key-2024'
@@ -300,9 +303,14 @@ def is_path_valid(path, word, board_tiles):
     if len(path) != len(word): return False
     seen_coords = set()
     for r, c in path:
-        coord_tuple = (r, c)
-        if coord_tuple in seen_coords: return False
-        seen_coords.add(coord_tuple)
+        # Explicit grid bounds check
+        if not (0 <= r < GRID_SIZE and 0 <= c < GRID_SIZE):
+            return False
+            
+        index = r * GRID_SIZE + c
+        # Strict index bounds check to prevent negative indexing
+        if not board_tiles or not (0 <= index < len(board_tiles)):
+            return False
         
     for i in range(len(path)):
         r, c = path[i]
@@ -427,10 +435,16 @@ def homepage():
     start_new_game()
     return render_template("index.html", initial_state=game_state, letter_scores=LETTER_SCORES)
 
-@app.route("/submit-word", methods=['POST'])
+@app.route('/submit-word', methods=['POST'])
 def submit_word():
-    data = request.get_json()
-    word, path = data.get("word", "").lower(), data.get("path", [])
+    # 1. JSON Guard
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({"valid": False, "reason": "Invalid request body."}), 400
+        
+    # 2. Concurrency Lock
+    with single_player_lock:
+        word, path = data.get("word", "").lower(), data.get("path", [])
     
     # Split up the validations so the game tells us EXACTLY what is wrong
     if len(word) < 3:
@@ -484,9 +498,15 @@ def submit_word():
 
 @app.route("/use-ability", methods=["POST"])
 def use_ability():
-    data = request.get_json()
-    ability = data.get("ability")
-    cost = GEM_COSTS.get(ability)
+    # 1. JSON Guard
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({"valid": False, "reason": "Invalid request body."}), 400
+        
+    # 2. Concurrency Lock
+    with single_player_lock:
+        ability = data.get("ability")
+        cost = GEM_COSTS.get(ability)
     
     if cost is None or game_state["gems"] < cost:
         return jsonify({"success": False, "reason": "Not enough gems!"})
@@ -508,7 +528,10 @@ def use_ability():
     elif ability == "swap":
         index = data.get("index")
         new_letter = data.get("new_letter", "").upper()
-        if index is not None and new_letter and "A" <= new_letter <= "Z":
+        if (index is not None 
+            and isinstance(index, int) 
+            and 0 <= index < len(game_state["board_tiles"]) 
+            and new_letter and "A" <= new_letter <= "Z"):
             game_state["board_tiles"][index]["letter"] = new_letter
         else:
             game_state["gems"] += cost

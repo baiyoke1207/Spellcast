@@ -181,22 +181,6 @@ body::before {
     margin-top: 5px;
 }
 
-/* ===== GAME BOARD ===== */
-#game-board {
-    position: relative;
-    display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    gap: 20px; /* Changed back to 20px */
-    padding: 10px;
-    background-color: rgba(17, 24, 39, 0.8);
-    border: 2px solid #374151;
-    border-radius: 10px;
-    user-select: none;
-    aspect-ratio: 1 / 1;
-    touch-action: none;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
-}
-
 #game-board.game-board--shuffling {
     z-index: 2;
     pointer-events: none;

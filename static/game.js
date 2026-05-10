@@ -2295,6 +2295,11 @@ async function fetchWordDefinition(word, isFallback = false) {
     }
 
     async function useAbility(ability, extraData = {}) {
+// NEW: Find the button and disable it immediately to prevent double-clicks
+        const btn = document.querySelector(`.ability-button[data-ability="${ability}"]`);
+        if (btn) btn.disabled = true;
+
+        // KEEP: Show the hint loading screen if necessary
         if (ability === 'hint') {
             const hintLoader = document.getElementById("hint-loader-overlay");
             if (hintLoader) {
