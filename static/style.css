@@ -181,6 +181,17 @@ body::before {
     margin-top: 5px;
 }
 
+#game-board {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 20px; /* I kept the 20px gap you preferred earlier! */
+    width: 100%;
+    max-width: 400px;
+    margin: 0 auto;
+    aspect-ratio: 1 / 1;
+    touch-action: none;
+}
+
 #game-board.game-board--shuffling {
     z-index: 2;
     pointer-events: none;
