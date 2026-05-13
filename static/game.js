@@ -106,6 +106,9 @@ function initGame(initialState, letterScores) {
     }
 
     function renderBoard(options = {}) {
+
+        clearSelection();
+
         const skipTileEntrance = options.skipTileEntrance === true;
         // TASK 2: Read the new syncAnimation flag. When true, all tile entrance
         // animations fire simultaneously (delay = 0) instead of staggering
@@ -742,7 +745,7 @@ async function fetchWordDefinition(word, isFallback = false) {
     }
     else if (len === 10) {
     // EXACTLY 10 letters: "GOD-LIKE!" with reality shatter
-    await createRealityShatterEnhanced();
+    await createInfiniteEffect(wordDisplay);
         hasShimmer = true;
     }
     // Progressive stacking tiers (11+)
@@ -757,7 +760,6 @@ async function fetchWordDefinition(word, isFallback = false) {
             createRealisticConfetti(150),
             createBorderGlow(),
             createElectricSurge(wordDisplay),
-            createRealityShatterEnhanced(),
             createMythicalEffect(wordDisplay)
         ]);
         document.body.style.animation = 'screenShake 0.5s ease';
@@ -775,7 +777,6 @@ async function fetchWordDefinition(word, isFallback = false) {
             createRealisticConfetti(150),
             createBorderGlow(),
             createElectricSurge(wordDisplay),
-            createRealityShatterEnhanced(),
             createMythicalEffect(wordDisplay),
             createTranscendentEffect(wordDisplay)
         ]);
@@ -794,7 +795,6 @@ async function fetchWordDefinition(word, isFallback = false) {
             createRealisticConfetti(150),
             createBorderGlow(),
             createElectricSurge(wordDisplay),
-            createRealityShatterEnhanced(),
             createMythicalEffect(wordDisplay),
             createTranscendentEffect(wordDisplay),
             createInfiniteEffect(wordDisplay)
@@ -2544,14 +2544,4 @@ async function fetchWordDefinition(word, isFallback = false) {
     generateLetterPicker();
     renderBoard();
     updateUI();
-}
-
-function resetDraggedTiles() {
-    currentPath.forEach(pos => {
-        pos.element.classList.remove('selected');
-        pos.element.style.opacity = '1'; // Ensure tile is visible
-        pos.element.style.visibility = 'visible'; // Ensure tile is visible
-        pos.element.style.transform = ''; // Reset any transformations
-    });
-    currentPath = [];
 }

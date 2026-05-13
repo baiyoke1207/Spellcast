@@ -437,14 +437,21 @@ def homepage():
 
 @app.route('/submit-word', methods=['POST'])
 def submit_word():
-    # 1. JSON Guard
     data = request.get_json(silent=True)
     if not data:
         return jsonify({"valid": False, "reason": "Invalid request body."}), 400
         
-    # 2. Concurrency Lock
     with single_player_lock:
-        word, path = data.get("word", "").lower(), data.get("path", [])
+        # NEW: Stop players from submitting words after the game ends
+        if game_state.get("game_over", False):
+            return jsonify({"valid": False, "reason": "Game is over."}), 403
+            
+        path = data.get("path", [])
+        # NEW: Ensure path is actually a list to prevent 500 crashes
+        if not isinstance(path, list):
+            return jsonify({"valid": False, "reason": "Invalid path format."}), 400
+            
+        word = data.get("word", "").strip().lower() # Added .strip() here for Minor #5!
     
     # Split up the validations so the game tells us EXACTLY what is wrong
     if len(word) < 3:
@@ -496,16 +503,18 @@ def submit_word():
     advance_to_next_round()
     return jsonify({"valid": True, "new_state": game_state, "score_added": final_score})
 
-@app.route("/use-ability", methods=["POST"])
+@app.route('/use-ability', methods=['POST'])
 def use_ability():
-    # 1. JSON Guard
     data = request.get_json(silent=True)
     if not data:
-        return jsonify({"valid": False, "reason": "Invalid request body."}), 400
-        
-    # 2. Concurrency Lock
+        return jsonify({"success": False, "reason": "Invalid request body."}), 400
+
     with single_player_lock:
-        ability = data.get("ability")
+        # NEW: Stop players from using abilities after the game ends
+        if game_state.get("game_over", False):
+            return jsonify({"success": False, "reason": "Game is over."}), 403
+        
+        ability = data.get("ability")   
         cost = GEM_COSTS.get(ability)
     
     if cost is None or game_state["gems"] < cost:
