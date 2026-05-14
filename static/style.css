@@ -228,7 +228,10 @@ body::before {
     animation-delay: 0s !important;
 }
 
-.grid-tile { 
+.grid-tile {
+    /* NEW: Prevent the browser from highlighting the text */
+    user-select: none;
+    -webkit-user-select: none; /* For Safari/iOS */
     position: relative; 
     width: 100%; 
     height: auto;

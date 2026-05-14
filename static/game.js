@@ -2230,8 +2230,10 @@ async function fetchWordDefinition(word, isFallback = false) {
 
             if (result.valid) {
                 // Re-enable hint usage after a successful word play
+                // Re-enable hint usage after a successful word play ONLY if they have enough gems
                 const hintBtn = document.querySelector('.ability-button[data-ability="hint"]');
-                if (hintBtn) hintBtn.disabled = false;
+                // We use result.new_state.gems because the server just sent us the newest gem count!
+                if (hintBtn) hintBtn.disabled = (result.new_state.gems < 4);
 
                 // FIX #2 & BUG FIX #5: Show proper feedback message below board
                 showMessage(`${word.toUpperCase()} played for +${result.score_added} points!`, 'green');
@@ -2364,6 +2366,10 @@ async function fetchWordDefinition(word, isFallback = false) {
                         setTimeout(() => {
                             if (shuffleBtn) shuffleBtn.disabled = false;
                         }, 1000);
+                        
+                        // FIX: Unlock Hint only if they have enough gems (assuming Hint costs 4)
+                        const hintBtn = document.querySelector('.ability-button[data-ability="hint"]');
+                        if (hintBtn) hintBtn.disabled = (gameState.gems < 4);
                     }
                     if (hintBtn) hintBtn.disabled = false;
                     // FIX: Actually render the new board on the screen so the player sees the shuffle/swap!
