@@ -1805,4 +1805,4 @@ if __name__ == "__main__":
     port = int(os.environ.get('PORT', 5000))
     # BUG FIX: use_reloader=False required in threading mode to prevent
     # the trie being built twice on startup (Flask reloader spawns a child process).
-    socketio.run(app, debug=False, host='0.0.0.0', port=port, use_reloader=False)
+    socketio.run(app, debug=False, host='0.0.0.0', port=port, use_reloader=False, allow_unsafe_werkzeug=True)
