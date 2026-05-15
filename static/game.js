@@ -2245,7 +2245,7 @@ async function fetchWordDefinition(word, isFallback = false) {
                     definition: null, // Will be fetched on demand
                     example: null,
                     phonetic: null,
-                    partOfSpeech: null
+                    partOfSpeech: nullif (ability === "shuffle" && shuffleBtn)
                 };
                 
                 let gemsCollected = 0;
@@ -2366,10 +2366,6 @@ async function fetchWordDefinition(word, isFallback = false) {
                         setTimeout(() => {
                             if (shuffleBtn) shuffleBtn.disabled = false;
                         }, 1000);
-                        
-                        // FIX: Unlock Hint only if they have enough gems (assuming Hint costs 4)
-                        const hintBtn = document.querySelector('.ability-button[data-ability="hint"]');
-                        if (hintBtn) hintBtn.disabled = (gameState.gems < 4);
                     }
                     if (hintBtn) hintBtn.disabled = false;
                     // FIX: Actually render the new board on the screen so the player sees the shuffle/swap!
