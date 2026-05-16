@@ -6,6 +6,9 @@ function initGame(initialState, letterScores) {
     let gameState = initialState;
     const LETTER_SCORES = letterScores;
     const GRID_SIZE = 5;
+    let customSubmitHandler = null;
+    let pathChangeHandler = null;
+    let boardInteractionsEnabled = true;
 
     // Sound effects
     const sounds = {
@@ -59,6 +62,12 @@ function initGame(initialState, letterScores) {
     const letterPicker = document.getElementById('letter-picker');
     const hintLoaderOverlay = document.getElementById('hint-loader-overlay');
     const hintPercentage = document.getElementById('hint-percentage');
+
+    function syncGlobalGameState() {
+        window.gameState = gameState;
+    }
+
+    syncGlobalGameState();
 
     // Client-side State
     let isInteracting = false;
@@ -172,6 +181,7 @@ function initGame(initialState, letterScores) {
             addParallaxToTile(tileElement);
         });
         addInteractionListeners();
+        syncGlobalGameState();
     }
     
     function addIndicator(tileElement, text, className) {
@@ -553,6 +563,7 @@ async function fetchWordDefinition(word, isFallback = false) {
         gameState = newState;
         currentScore = newState.score;
         currentGems = newState.gems;
+        syncGlobalGameState();
         
         // FIX #1: Clear hint display when advancing to new round
         if (animationType !== 'shuffle' && previousRound !== undefined && previousRound < newState.round) {
@@ -2082,17 +2093,23 @@ async function fetchWordDefinition(word, isFallback = false) {
     }
 
     function removeInteractionListeners() {
-        boardElement.removeEventListener('mousedown', handleInteractionStart);
-        boardElement.removeEventListener('mouseover', handleInteractionMove);
-        document.removeEventListener('mouseup', handleInteractionEnd);
+        boardElement.removeEventListener('pointerdown', handleInteractionStart);
+        boardElement.removeEventListener('pointermove', handlePointerMove);
+        boardElement.removeEventListener('pointerenter', handlePointerMove);
+        boardElement.removeEventListener('pointerup', handleInteractionEnd);
+        boardElement.removeEventListener('pointercancel', handleInteractionEnd);
+        document.removeEventListener('pointerup', handleInteractionEnd);
         document.removeEventListener('keydown', handleGlobalKeyPress);
     }
 
     function addInteractionListeners() {
         removeInteractionListeners();
-        boardElement.addEventListener('mousedown', handleInteractionStart);
-        boardElement.addEventListener('mouseover', handleInteractionMove);
-        document.addEventListener('mouseup', handleInteractionEnd);
+        boardElement.addEventListener('pointerdown', handleInteractionStart);
+        boardElement.addEventListener('pointermove', handlePointerMove);
+        boardElement.addEventListener('pointerenter', handlePointerMove);
+        boardElement.addEventListener('pointerup', handleInteractionEnd);
+        boardElement.addEventListener('pointercancel', handleInteractionEnd);
+        document.addEventListener('pointerup', handleInteractionEnd);
         document.addEventListener('keydown', handleGlobalKeyPress);
     }
 
@@ -2101,8 +2118,17 @@ async function fetchWordDefinition(word, isFallback = false) {
     }
 
     function handleInteractionStart(e) {
+        if (!boardInteractionsEnabled) return;
         const tile = e.target.closest('.grid-tile');
         if (!tile || interactionMode !== 'play' || potentialPaths.length > 0) return;
+        e.preventDefault();
+        if (boardElement.setPointerCapture && e.pointerId !== undefined) {
+            try {
+                boardElement.setPointerCapture(e.pointerId);
+            } catch (err) {
+                console.debug('Pointer capture unavailable:', err);
+            }
+        }
         
         if (currentPath.length >= 2) {
             const lastTile = currentPath[currentPath.length - 1];
@@ -2125,14 +2151,30 @@ async function fetchWordDefinition(word, isFallback = false) {
         playSound('tile_select');
     }
 
-    function handleInteractionMove(e) {
+    function handlePointerMove(e) {
+        if (!boardInteractionsEnabled) return;
         if (!isInteracting) return;
-        const tile = e.target.closest('.grid-tile');
+        const tile = resolveTileFromPointerEvent(e);
         if (tile) addToPath(tile);
     }
 
-    function handleInteractionEnd() { 
+    function handleInteractionEnd(e) { 
+        if (boardElement.releasePointerCapture && e && e.pointerId !== undefined) {
+            try {
+                boardElement.releasePointerCapture(e.pointerId);
+            } catch (err) {
+                console.debug('Pointer release unavailable:', err);
+            }
+        }
         isInteracting = false; 
+    }
+
+    function resolveTileFromPointerEvent(e) {
+        let tile = e.target.closest ? e.target.closest('.grid-tile') : null;
+        if (tile) return tile;
+
+        const pointTarget = document.elementFromPoint(e.clientX, e.clientY);
+        return pointTarget ? pointTarget.closest('.grid-tile') : null;
     }
     
     function addToPath(tileElement) {
@@ -2176,6 +2218,13 @@ async function fetchWordDefinition(word, isFallback = false) {
         currentWordDisplay.textContent = word.toUpperCase();
         scorePreviewDisplay.textContent = (word.length > 0) ? `(+${score})` : '';
         drawPathLines();
+        if (typeof pathChangeHandler === 'function') {
+            pathChangeHandler({
+                word: word.toUpperCase(),
+                score,
+                path: currentPath.map(pos => [pos.r, pos.c])
+            });
+        }
     }
     
     function drawPathLines() {
@@ -2206,6 +2255,11 @@ async function fetchWordDefinition(word, isFallback = false) {
         if (currentPath.length === 0) return;
         const word = currentPath.map(p => gameState.board_tiles[p.r * GRID_SIZE + p.c].letter).join('');
         const pathCoords = currentPath.map(p => [p.r, p.c]);
+        if (typeof customSubmitHandler === 'function') {
+            clearSelection();
+            await customSubmitHandler(word, pathCoords);
+            return;
+        }
         await submitToServer(word, pathCoords);
     }
     
@@ -2245,7 +2299,7 @@ async function fetchWordDefinition(word, isFallback = false) {
                     definition: null, // Will be fetched on demand
                     example: null,
                     phonetic: null,
-                    partOfSpeech: nullif (ability === "shuffle" && shuffleBtn)
+                    partOfSpeech: null
                 };
                 
                 let gemsCollected = 0;
@@ -2546,4 +2600,55 @@ async function fetchWordDefinition(word, isFallback = false) {
     generateLetterPicker();
     renderBoard();
     updateUI();
+    syncGlobalGameState();
+
+    window.singlePlayerGame = {
+        clearSelection,
+        getState: () => gameState,
+        renderBoard,
+        setBoardState(boardRows, options = {}) {
+            gameState.board_tiles = [];
+            for (let r = 0; r < GRID_SIZE; r++) {
+                for (let c = 0; c < GRID_SIZE; c++) {
+                    gameState.board_tiles.push({
+                        letter: boardRows[r][c],
+                        special: null,
+                        gem: false
+                    });
+                }
+            }
+            syncGlobalGameState();
+            renderBoard(options);
+        },
+        setGameState(nextState, options = {}) {
+            gameState = nextState;
+            currentScore = nextState.score ?? currentScore;
+            currentGems = nextState.gems ?? currentGems;
+            syncGlobalGameState();
+            if (options.render !== false) {
+                renderBoard(options.renderOptions || {});
+                updateUI();
+            }
+        },
+        setInteractionEnabled(enabled) {
+            boardInteractionsEnabled = enabled;
+            boardElement.classList.toggle('board-disabled', !enabled);
+            if (!enabled) {
+                isInteracting = false;
+                clearSelection();
+            }
+        },
+        setSubmitHandler(handler) {
+            customSubmitHandler = handler;
+        },
+        setPathChangeHandler(handler) {
+            pathChangeHandler = handler;
+        },
+        setMessage: showMessage,
+        updateHud(values = {}) {
+            if (typeof values.round !== 'undefined') roundDisplay.textContent = values.round;
+            if (typeof values.score !== 'undefined') scoreDisplay.textContent = values.score;
+            if (typeof values.gems !== 'undefined') gemDisplay.textContent = values.gems;
+        }
+    };
 }

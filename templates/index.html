@@ -116,6 +116,10 @@
                                 </span>
                             </label>
                         </div>
+                        <div class="config-section">
+                            <h3>Match Summary</h3>
+                            <div id="timer-info-display" class="timer-summary"></div>
+                        </div>
                     </div>
 
                     <!-- RIGHT COLUMN -->
@@ -191,7 +195,8 @@
                 <div style="width:100%; height:20px; background:rgba(75,85,99,0.5); border-radius:10px; overflow:hidden;">
                     <div id="timer-bar" style="height:100%; background:#ef4444; transition:width 0.3s ease, background-color 0.3s ease; border-radius:10px;"></div>
                 </div>
-                <!-- ISSUE 5: Voting system removed - turns end immediately after submission -->
+                <button id="vote-timer-btn" class="lobby-button" style="display:none; margin-top:12px;">Vote to Start Timer</button>
+                <div id="vote-info" style="display:none; margin-top:8px; color:#d1d5db; font-size:0.9em;"></div>
             </div>
 
             <div id="selection-area">

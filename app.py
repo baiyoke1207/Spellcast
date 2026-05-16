@@ -435,6 +435,14 @@ def homepage():
     start_new_game()
     return render_template("index.html", initial_state=game_state, letter_scores=LETTER_SCORES)
 
+@app.route("/health")
+def healthcheck():
+    """Simple health endpoint for Railway/Render health checks."""
+    return jsonify({
+        "status": "ok",
+        "service": "web-spellcast"
+    }), 200
+
 @app.route('/submit-word', methods=['POST'])
 def submit_word():
     data = request.get_json(silent=True)
@@ -648,22 +656,28 @@ def use_ability():
 
 # ===== PHASE 2 CRITICAL VALIDATION FUNCTIONS =====
 
-# GAP #1: STRICT ADJACENCY VALIDATION (NO DIAGONALS)
+# GAP #1: STRICT ADJACENCY VALIDATION
 def is_valid_path_strict(positions):
-    """Validate path with NO diagonal movement (Manhattan distance = 1 only)"""
-    if len(positions) < 2:
+    """Validate path with Spellcast-style adjacency and no tile reuse."""
+    if len(positions) < 1:
         return True
-    
-    for i in range(1, len(positions)):
-        r1, c1 = positions[i-1]
-        r2, c2 = positions[i]
-        manhattan_distance = abs(r1 - r2) + abs(c1 - c2)
-        
-        # CRITICAL: Must be exactly 1 (adjacent horizontally or vertically)
-        # manhattan_distance = 2 means diagonal OR gap
-        if manhattan_distance != 1:
+
+    seen = set()
+
+    for idx, (row, col) in enumerate(positions):
+        if row < 0 or row >= GRID_SIZE or col < 0 or col >= GRID_SIZE:
             return False
-    
+        if (row, col) in seen:
+            return False
+        seen.add((row, col))
+
+        if idx == 0:
+            continue
+
+        prev_row, prev_col = positions[idx - 1]
+        if max(abs(row - prev_row), abs(col - prev_col)) != 1:
+            return False
+
     return True
 
 # GAP #7: BOARD TILE CONSISTENCY VALIDATION
@@ -784,7 +798,7 @@ def apply_tile_swap(board_state, swap_history):
             row, col = swap['position']
             new_letter = swap['new_letter']
             board_state[row][col] = new_letter
-            print(f'[SWAP] Persisting unused swap at ({row},{col}): {swap["old_letter"]} → {new_letter}')
+            print(f'[SWAP] Persisting unused swap at ({row},{col}): {swap["old_letter"]} -> {new_letter}')
     
     return board_state
 
@@ -837,6 +851,12 @@ def compile_round_results(room):
         }
     
     return results
+
+def get_winner_id(players):
+    """Return the player id with the highest score, breaking ties by join order."""
+    if not players:
+        return None
+    return max(players, key=lambda player: player.get('score', 0))['id']
 
 # ===== HELPER FUNCTIONS FOR GAME LOGIC =====
 
@@ -1117,9 +1137,11 @@ def handle_start_game(data):
         emit('error', {'message': 'Need at least 2 players'})
         return
     
+    settings = data.get('settings', data)
+
     # Update timer settings from data
-    timer_type = data.get('timerType', 'voting')
-    board_mode = data.get('boardMode', 'shared')
+    timer_type = settings.get('timerType', 'voting')
+    board_mode = settings.get('boardMode', 'shared')
     
     if timer_type not in ['voting', 'fixed']:
         timer_type = 'voting'
@@ -1128,7 +1150,7 @@ def handle_start_game(data):
     room['settings']['board_mode'] = board_mode
     
     if timer_type == 'fixed':
-        fixed_minutes = data.get('timerDuration', 2)
+        fixed_minutes = settings.get('timerDuration', 2)
         fixed_minutes = max(0.5, min(10, float(fixed_minutes)))
         room['settings']['fixed_minutes'] = fixed_minutes
     
@@ -1159,7 +1181,8 @@ def handle_start_game(data):
             'turn_number': 1,
             'active_player_id': room['players'][0]['id'],  # First player starts
             'words_played': [],
-            'timer_active': True
+            'timer_active': True,
+            'timer_expires': time.time() + (room['settings'].get('fixed_minutes', 2) * 60)
         }
     
     # FIX: Use serialize_room to convert set to list for JSON
@@ -1174,15 +1197,24 @@ def handle_start_game(data):
         'timer_type': timer_type,
         'board_mode': board_mode,
         'duration': duration_seconds,
-        'board_state': room['round_state']['board_state'] if board_mode == 'shared' else None,
+        'board_state': room['round_state']['board_state'] if board_mode == 'shared' else room['game_state']['board_state'],
         'active_player_id': room['game_state']['active_player_id'] if board_mode == 'randomized' else None,  # FEATURE #7: Include active_player_id
-        'fixed_minutes': room['settings'].get('fixed_minutes', 2) if timer_type == 'fixed' else None
+        'fixed_minutes': room['settings'].get('fixed_minutes', 2) if timer_type == 'fixed' else None,
+        'round_number': 1
         # FEATURE #6: Do NOT send player_scores here - they're hidden during gameplay
     }, room=room_code)
     
     # Start fixed timer if configured
     if timer_type == 'fixed' and board_mode == 'shared':
         thread = threading.Thread(target=fixed_timer_countdown, args=(room_code, duration_seconds))
+        thread.daemon = True
+        thread.start()
+    elif timer_type == 'voting' and board_mode == 'shared':
+        thread = threading.Thread(target=start_grace_period_voting, args=(room_code, 'shared_board'))
+        thread.daemon = True
+        thread.start()
+    elif timer_type == 'fixed' and board_mode == 'randomized':
+        thread = threading.Thread(target=fixed_timer_countdown_turnbased, args=(room_code, duration_seconds, 1))
         thread.daemon = True
         thread.start()
     
@@ -1237,6 +1269,8 @@ def handle_swap_tile(data):
         emit('error', {'message': 'Room not found'})
         return
     
+    enable_voting = False
+
     with game_rooms_lock:
         room = game_rooms[room_code]
         round_state = room.get('round_state', {})
@@ -1274,7 +1308,7 @@ def handle_swap_tile(data):
         'board_state': board_state
     }, room=room_code)
     
-    print(f'[SWAP] Player {session_id} swapped tile at ({row},{col}): {old_letter} → {new_letter}')
+    print(f'[SWAP] Player {session_id} swapped tile at ({row},{col}): {old_letter} -> {new_letter}')
 
 @socketio.on('player_tile_selection')
 def handle_tile_selection_broadcast(data):
@@ -1351,6 +1385,7 @@ def handle_vote_timer():
 def handle_player_submitted_word(data):
     """Handle word submission with complete validation chain"""
     session_id = request.sid
+    enable_voting = False
     if session_id not in player_sessions:
         return
     
@@ -1385,11 +1420,11 @@ def handle_player_submitted_word(data):
             })
             return
         
-        # VALIDATION STEP 2: Word length (minimum 2, maximum 25)
-        if len(word) < 2 or len(word) > 25:
+        # VALIDATION STEP 2: Word length (minimum 3, maximum 25)
+        if len(word) < 3 or len(word) > 25:
             emit('word_rejected', {
                 'reason': 'invalid_length',
-                'message': f'Word must be 2-25 letters (got {len(word)})',
+                'message': f'Word must be 3-25 letters (got {len(word)})',
                 'word': word
             })
             return
@@ -1407,7 +1442,7 @@ def handle_player_submitted_word(data):
         if not is_valid_path_strict(positions):
             emit('word_rejected', {
                 'reason': 'invalid_path',
-                'message': 'Letters must be adjacent (no diagonals or gaps)',
+                'message': 'Letters must connect tile-to-tile with no gaps or repeats',
                 'word': word,
                 'positions': positions
             })
@@ -1448,6 +1483,20 @@ def handle_player_submitted_word(data):
         round_state['submissions'][session_id]['words'].append(word)
         round_state['submissions'][session_id]['positions'].append(positions)
         round_state['submissions'][session_id]['score'] += score
+
+        if room['settings'].get('timer_type') == 'voting':
+            submissions = round_state.get('submissions', {})
+            players_submitted = sum(1 for submission in submissions.values() if submission.get('words'))
+            total_players = len(room['players'])
+            timer_state = room.get('timer_state', {})
+            if (
+                not timer_state.get('grace_active')
+                and not timer_state.get('voting_active')
+                and not timer_state.get('countdown_active')
+                and players_submitted == total_players - 1
+            ):
+                timer_state['voting_active'] = True
+                enable_voting = True
     
     # Send confirmation ONLY to submitting player (outside lock)
     emit('word_accepted', {
@@ -1455,8 +1504,11 @@ def handle_player_submitted_word(data):
         'score': score,
         'message': 'Word submitted! (Score hidden until round ends)'
     })
+
+    if enable_voting:
+        socketio.emit('timer_voting_enabled', {}, room=room_code)
     
-    print(f'[VALIDATION] ✓ Player {session_id} submitted "{word}" (score: {score}, hidden)')
+    print(f'[VALIDATION] OK Player {session_id} submitted "{word}" (score: {score}, hidden)')
     
     # CRITICAL FIX #3: Check if all players have submitted
     check_and_end_round_if_all_submitted(room_code)
@@ -1477,6 +1529,8 @@ def handle_turnbased_word_submission(data):
         emit('word_rejected', {'reason': 'invalid_room', 'message': 'Room not found'})
         return
     
+    game_finished_payload = None
+
     with game_rooms_lock:
         room = game_rooms[room_code]
         
@@ -1505,10 +1559,10 @@ def handle_turnbased_word_submission(data):
                 return
         
         # Word length validation
-        if len(word) < 2 or len(word) > 25:
+        if len(word) < 3 or len(word) > 25:
             emit('word_rejected', {
                 'reason': 'invalid_length',
-                'message': f'Word must be 2-25 letters'
+                'message': 'Word must be 3-25 letters'
             })
             return
         
@@ -1524,7 +1578,7 @@ def handle_turnbased_word_submission(data):
         if not is_valid_path_strict(positions):
             emit('word_rejected', {
                 'reason': 'invalid_path',
-                'message': 'No diagonals or gaps allowed'
+                'message': 'Letters must connect tile-to-tile with no gaps or repeats'
             })
             return
         
@@ -1560,14 +1614,24 @@ def handle_turnbased_word_submission(data):
             'turn': game_state['turn_number']
         })
         
-        # Switch to next player
         player_ids = [p['id'] for p in room['players']]
         current_index = player_ids.index(session_id)
-        next_player_id = player_ids[(current_index + 1) % len(player_ids)]
-        
-        game_state['active_player_id'] = next_player_id
         game_state['turn_number'] += 1
-        game_state['timer_expires'] = time.time() + (room['settings'].get('fixed_minutes', 1) * 60)
+        current_round = ((game_state['turn_number'] - 1) // len(player_ids)) + 1
+        game_state['current_round'] = current_round
+
+        max_rounds = room['settings'].get('rounds_per_player', MAX_ROUNDS)
+        if current_round > max_rounds:
+            room['status'] = 'finished'
+            game_finished_payload = {
+                'winner_id': get_winner_id(room['players']),
+                'player_scores': {p['id']: p.get('score', 0) for p in room['players']}
+            }
+            next_player_id = None
+        else:
+            next_player_id = player_ids[(current_index + 1) % len(player_ids)]
+            game_state['active_player_id'] = next_player_id
+            game_state['timer_expires'] = time.time() + (room['settings'].get('fixed_minutes', 1) * 60)
     
     # Broadcast word accepted to ALL players
     socketio.emit('word_accepted_turnbased', {
@@ -1577,19 +1641,25 @@ def handle_turnbased_word_submission(data):
         'board_state': board_state,
         'consumed_positions': positions,
         'next_player_id': next_player_id,
-        'turn_number': game_state['turn_number']
+        'turn_number': game_state['turn_number'],
+        'round_number': game_state.get('current_round', 1)
     }, room=room_code)
+
+    if game_finished_payload:
+        socketio.emit('game_finished', game_finished_payload, room=room_code)
+        print(f'[TURNBASED] Game finished in room {room_code}')
+        return
     
     # Start new turn timer
     if room['settings']['timer_type'] == 'fixed':
         duration = int(room['settings'].get('fixed_minutes', 1) * 60)
-        thread = threading.Thread(target=fixed_timer_countdown_turnbased, args=(room_code, duration))
+        thread = threading.Thread(target=fixed_timer_countdown_turnbased, args=(room_code, duration, game_state['turn_number']))
         thread.daemon = True
         thread.start()
     
     print(f'[TURNBASED] Player {session_id} played "{word}" for {score} points, turn passed to {next_player_id}')
 
-def fixed_timer_countdown_turnbased(room_code, duration_seconds):
+def fixed_timer_countdown_turnbased(room_code, duration_seconds, expected_turn_number):
     """Timer countdown for turn-based mode"""
     for remaining in range(duration_seconds, 0, -1):
         if room_code not in game_rooms:
@@ -1597,6 +1667,10 @@ def fixed_timer_countdown_turnbased(room_code, duration_seconds):
         
         room = game_rooms[room_code]
         if room['status'] != 'playing':
+            return
+
+        game_state = room.get('game_state', {})
+        if game_state.get('turn_number') != expected_turn_number:
             return
         
         socketio.emit('timer_fixed_tick', {'seconds': remaining}, room=room_code)
@@ -1607,6 +1681,8 @@ def fixed_timer_countdown_turnbased(room_code, duration_seconds):
         with game_rooms_lock:
             room = game_rooms[room_code]
             game_state = room.get('game_state', {})
+            if game_state.get('turn_number') != expected_turn_number:
+                return
             
             # Get next player
             player_ids = [p['id'] for p in room['players']]
@@ -1614,12 +1690,28 @@ def fixed_timer_countdown_turnbased(room_code, duration_seconds):
             if active_id in player_ids:
                 current_index = player_ids.index(active_id)
                 next_player_id = player_ids[(current_index + 1) % len(player_ids)]
-                game_state['active_player_id'] = next_player_id
                 game_state['turn_number'] += 1
-        
+                current_round = ((game_state['turn_number'] - 1) // len(player_ids)) + 1
+                game_state['current_round'] = current_round
+
+                max_rounds = room['settings'].get('rounds_per_player', MAX_ROUNDS)
+                if current_round > max_rounds:
+                    room['status'] = 'finished'
+                    socketio.emit('game_finished', {
+                        'winner_id': get_winner_id(room['players']),
+                        'player_scores': {p['id']: p.get('score', 0) for p in room['players']}
+                    }, room=room_code)
+                    return
+
+                game_state['active_player_id'] = next_player_id
+                game_state['timer_expires'] = time.time() + duration_seconds
+            else:
+                return
+
         socketio.emit('turn_timeout', {
             'skipped_player_id': active_id,
-            'next_player_id': next_player_id
+            'next_player_id': next_player_id,
+            'round_number': game_state.get('current_round', 1)
         }, room=room_code)
 
 # FEATURE 1: Player marks themselves as done
@@ -1718,25 +1810,56 @@ def end_round(room_code):
         
         # CHANGE #4: Clear swap history for next round
         round_state['swap_history'] = []
+        current_round_number = round_state['round_number']
+        max_rounds = room['settings'].get('rounds_per_player', MAX_ROUNDS)
+        player_scores = {p['id']: p.get('score', 0) for p in room['players']}
+        winner_id = get_winner_id(room['players'])
     
     # Broadcast results (OUTSIDE lock) - FEATURE #6: Send scores in round_ended
     socketio.emit('round_ended', {
         'results': results,
-        'round_number': round_state['round_number'],
+        'round_number': current_round_number,
         'board_state': board_state,
         'consumed_positions': list(consumed_positions),  # CHANGE #5: Send positions not rows
-        'player_scores': {p['id']: p.get('score', 0) for p in room['players']}  # FEATURE #6: Scores revealed here
+        'player_scores': player_scores,  # FEATURE #6: Scores revealed here
+        'next_round_number': min(current_round_number + 1, max_rounds)
     }, room=room_code)
-    
+
+    if current_round_number >= max_rounds:
+        with game_rooms_lock:
+            room = game_rooms[room_code]
+            room['status'] = 'finished'
+        socketio.emit('game_finished', {
+            'winner_id': winner_id,
+            'player_scores': player_scores
+        }, room=room_code)
+        return
+
     # Prepare next round
     with game_rooms_lock:
+        room = game_rooms[room_code]
+        round_state = room.get('round_state', {})
         round_state['round_number'] += 1
         round_state['submissions'] = {
-            player['id']: {'words': [], 'positions': [], 'score': 0, 'done': False} 
+            player['id']: {'words': [], 'positions': [], 'score': 0, 'done': False}
             for player in room['players']
         }
         round_state['all_done'] = False
         round_state['swap_history'] = []  # FEATURE #2: Reset swap history for new round
+        round_state['timer_start'] = time.time()
+        round_state['timer_expires'] = time.time() + (room['settings'].get('fixed_minutes', 2) * 60 if room['settings'].get('timer_type') == 'fixed' else 120)
+
+    if room_code in game_rooms:
+        room = game_rooms[room_code]
+        if room['settings'].get('timer_type') == 'fixed':
+            duration_seconds = int(room['settings'].get('fixed_minutes', 2) * 60)
+            thread = threading.Thread(target=fixed_timer_countdown, args=(room_code, duration_seconds))
+            thread.daemon = True
+            thread.start()
+        elif room['settings'].get('timer_type') == 'voting':
+            thread = threading.Thread(target=start_grace_period_voting, args=(room_code, 'shared_board'))
+            thread.daemon = True
+            thread.start()
 
 # FEATURE 3: Fixed timer countdown - ENHANCED
 def fixed_timer_countdown(room_code, duration_seconds):
@@ -1788,17 +1911,22 @@ def handle_end_turn():
 
 if __name__ == "__main__":
     import os
+    try:
+        import sys
+        sys.stdout.reconfigure(encoding='utf-8')
+    except Exception:
+        pass
     print("="*50)
     print("SPELLCAST - Multiplayer with Advanced Timer System")
     print("="*50)
-    print("✅ Single Player: PRESERVED and working")
-    print("✅ Multiplayer: Room creation/joining READY")
-    print("✅ Timer System: Voting & Fixed timers implemented")
-    print("📝 Features:")
-    print("   - Max 5 players per room")
+    print("Single Player: ready")
+    print("Multiplayer: room creation/joining ready")
+    print("Timer System: voting and fixed timers implemented")
+    print("Features:")
+    print("   - Max 4 players per room")
     print("   - Always 5 rounds per game")
     print("   - Voting-based timer (30s grace + voting + 30s countdown)")
-    print("   - Fixed timer (1-10 minutes, host selectable)")
+    print("   - Fixed timer (0.5-10 minutes, host selectable)")
     print("="*50)
     
     # Use PORT from environment (for hosting platforms) or default to 5000
